@@ -1,0 +1,11 @@
+services:
+  meowmetrics:
+    build: .
+    container_name: meowmetrics
+    restart: unless-stopped
+    ports:
+      - "8090:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Europe/Berlin
