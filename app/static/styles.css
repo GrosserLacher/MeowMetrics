@@ -53,7 +53,7 @@ small{display:block;font-size:12.5px}.dngtxt{color:var(--bad)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}.chips.scroll{margin-bottom:10px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;max-width:100%}
 .chip.sm{padding:6px 12px;font-size:13px}.chip.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
-.chip.pet{--cc:#d9c7b8;--ct:#1d1a17;padding:6px 14px 6px 6px}.chip.pet.on{background:var(--accs);border-color:var(--cc);color:var(--ink)}.chip .cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.pet{--cc:#d9c7b8;--ct:#1d1a17;padding:6px 14px 6px 6px}.chip.pet.on{background:var(--accs);border-color:var(--acc);color:var(--ink)}.chip .cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip.static{cursor:default}.chip .x{border:0;background:none;color:var(--mut);padding:0;display:grid}
 .seg{display:flex;gap:4px;padding:4px;background:color-mix(in srgb,var(--line) 55%,var(--bg));border-radius:14px;margin:0 0 14px}
 .seg button{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:none;border-radius:11px;padding:9px 6px;font-weight:600;font-size:13.5px;color:var(--mut)}
@@ -168,3 +168,5 @@ img.av{display:block;object-fit:cover;background:var(--cc)}img.av::before,img.av
 .photobtns .av{flex:none;align-self:center}
 
 .ini.ph{background-size:cover;background-position:center;color:transparent}.ini.ph::before,.ini.ph::after{display:none}
+
+.syncb{border:0;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;white-space:nowrap}.syncb.ok{background:var(--oks);color:var(--ok)}.syncb.bad{background:var(--bads);color:var(--bad)}

@@ -99,6 +99,7 @@ More       catalog · vet clinics · reminders · features · appearance · data
 - **Colour themes** inspired by Material Design, with every colour still adjustable.
 - **Medication** has a fixed unit per product (e.g. *tablet* or *mg*); when logging you only adjust the amount.
 - **Administrators** manage all accounts under *More → Account & users* (rename, new password, admin right, delete).
+- **Offline mode:** new entries (feeding, medication, incident, measurement, treatment log) made without a connection are stored on the device and sent automatically once the server is reachable again; a message confirms the synchronisation. Every entry carries a unique ID, so nothing is stored twice. Editing, deleting and master data need a connection. The offline start of the app (service worker) requires **HTTPS**; the entry queue itself also works over plain HTTP while the app is open. See *More → Synchronisation*.
 - **Switchable features** are respected everywhere: tiles in the add sheet, cards on *Today*, tabs of the animal record, filters, catalog sections and navigation items disappear when the function is switched off. Stored data is never touched.
 
 ---

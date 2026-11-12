@@ -3,7 +3,7 @@ const A={};
 const setPath=(p,v)=>{const k=p.split('.');let o=S;for(let i=0;i<k.length-1;i++){if(o[k[i]]==null||typeof o[k[i]]!='object')o[k[i]]={};o=o[k[i]]}o[k[k.length-1]]=v};
 const getPath=p=>p.split('.').reduce((o,k)=>o==null?o:o[k],S);
 /* Aktion ausführen, danach neu laden und zeichnen (Fehler werden vom API-Aufruf als Hinweis gezeigt) */
-const T=f=>async(...a)=>{try{const cb=await f(...a);await load();if(cb)cb()}catch(e){console.warn(e);try{await load()}catch(_){}}render()};
+const T=f=>async(...a)=>{QN=false;try{const cb=await f(...a);await load();if(cb)cb()}catch(e){console.warn(e);if(e&&e.offline)toast('Keine Verbindung – diese Aktion ist nur online möglich');try{await load()}catch(_){}}render()};
 
 A.dur=d=>{setPath(d.p+'.dur',d.v)};
 const chip=(a,v,on,txt,x='')=>`<button type="button" class="chip ${on?'on':''}" data-a="${a}" data-v="${esc(v)}" ${x}>${txt}</button>`;

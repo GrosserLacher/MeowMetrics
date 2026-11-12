@@ -18,7 +18,7 @@ function vList(){
   if(it.length>f.n)o+=`<button class="btn ghost block" data-a="more">Weitere anzeigen (${it.length-f.n})</button>`;
   return o}
 A.hfc=d=>{S.fl.cat=d.v;S.fl.n=60};A.hfk=d=>{S.fl.kind=d.v;S.fl.n=60};A.more=()=>{S.fl.n+=60};
-const acts=(k,id)=>`<div class="acts"><button class="ib" data-a="edit" data-k="${k}" data-id="${esc(id)}" aria-label="Bearbeiten">${ico('edit',16)}</button><button class="ib dng" data-a="del" data-k="${k}" data-id="${esc(id)}" aria-label="Löschen">${ico('trash',16)}</button></div>`;
+const acts=(k,id)=>String(id)[0]=='p'?`<div class="acts">${pill('Wartet auf Sync','ok')}</div>`:`<div class="acts"><button class="ib" data-a="edit" data-k="${k}" data-id="${esc(id)}" aria-label="Bearbeiten">${ico('edit',16)}</button><button class="ib dng" data-a="del" data-k="${k}" data-id="${esc(id)}" aria-label="Löschen">${ico('trash',16)}</button></div>`;
 const thumbsH=f=>f.imgs&&f.imgs.length?`<div class="thumbs">${f.imgs.map(u=>`<img src="${esc(u)}" loading="lazy" alt="Foto" data-a="zoom" data-src="${esc(u)}">`).join('')}</div>`:'';
 function histItem(i){const x=i.x;
   if(i.k=='f')return`<article class="card item"><div class="row between top"><div class="row nowrap"><span class="ti">${ico(x.kind=='snack'?'cookie':x.kind=='drink'?'glass':'bowl',18)}</span><div><b>${esc(x.food)}</b><div class="muted">${esc(x.man)} · ${KL[x.kind]} · ${fmt(x.ts)}${byT(x)}</div></div></div>${acts('f',x.id)}</div>

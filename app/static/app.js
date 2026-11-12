@@ -20,11 +20,12 @@ function applyTheme(){const r=document.documentElement,st=r.style,U=PREFS.ui;
 A.tab=d=>{S.tab=d.v;S.pet=null;S.np=null;S.more='';S.sh=null;window.scrollTo(0,0)};
 A.lang=()=>{const ks=Object.keys((window.I18N||{}).languages||{de:1});setLang(ks[(ks.indexOf(LANG)+1)%ks.length])};
 
+const syncBadge=()=>SYNCING?'<span class="syncb ok">Synchronisiere …</span>':(OFFLINE||PENDING)?`<button class="syncb ${OFFLINE?'bad':'ok'}" data-a="syncnow">${OFFLINE?'Offline':'Sync'}${PENDING?' · '+PENDING+' ausstehend':''}</button>`:'';
 function render(){
   if(!ME)return;
   if(S.tab=='hist'&&!histOn())S.tab='today';
   const tabs=navTabs();
-  $('#top').innerHTML=`<div class="topbar"><div class="brand">${S.tab=='today'?`<span class="logo">${ico('paw',18)}</span><b>${esc(window.APP_NAME||'')}</b>`:`<b>${SUBTITLE[S.tab]}</b>`}</div><div class="row nowrap">${iconBtn('togtheme','theme','Hell/Dunkel wechseln')}<button class="ib txt" data-a="lang" aria-label="Sprache">${LANG.toUpperCase()}</button></div></div>`;
+  $('#top').innerHTML=`<div class="topbar"><div class="brand">${S.tab=='today'?`<span class="logo">${ico('paw',18)}</span><b>${esc(window.APP_NAME||'')}</b>`:`<b>${SUBTITLE[S.tab]}</b>`}</div><div class="row nowrap">${syncBadge()}${iconBtn('togtheme','theme','Hell/Dunkel wechseln')}<button class="ib txt" data-a="lang" aria-label="Sprache">${LANG.toUpperCase()}</button></div></div>`;
   const a=$('#app');
   a.style.setProperty('--catimg',S.tab=='today'?heroArt():'none');
   a.className=(S.tab=='today'&&heroArt()=='none'?'nocat ':'')+'view';
@@ -83,9 +84,28 @@ function showLogin(setup){let el=$('#login');if(!el){document.body.insertAdjacen
   const go=async()=>{const r=await fetch(setup?'/api/setup-admin':'/api/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('#lu').value,password:$('#lp').value})});
     if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}const x=$('#le');x.hidden=false;x.textContent=d;return}el.remove();await initApp()};
   $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').focus()}
+function showOffline(){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
+  el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">Keine Verbindung</h2><p class="muted">Beim ersten Start wird eine Verbindung zum Server benötigt. Danach funktioniert die App auch offline.</p><button class="btn primary block" onclick="location.reload()">Erneut versuchen</button></div>`}
+function registerSW(){if(SECURE&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{})}
 async function initApp(){
-  const st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());ME=st.user;if(!ME){showLogin(false);return}
-  const p=await API('GET','/api/prefs');PREFS={...p,ui:{...(p.ui||{})}};HD=!!p.hd;
+  let st,p;
+  try{
+    st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());
+    if(st.needs_setup){showLogin(true);return}
+    ME=st.user;if(!ME){showLogin(false);return}
+    p=await API('GET','/api/prefs');
+    if(HAVE_IDB){IDB.set('me',ME).catch(()=>{});IDB.set('prefs',p).catch(()=>{})}
+  }catch(e){
+    if(e&&e.message=='401')return;
+    if(!(e instanceof TypeError||(e&&e.offline)))throw e;
+    ME=HAVE_IDB?await IDB.get('me').catch(()=>null):null;p=HAVE_IDB?await IDB.get('prefs').catch(()=>null):null;
+    if(!ME||!p){showOffline();return}
+    OFFLINE=true}
+  PREFS={...p,ui:{...(p.ui||{})}};HD=!!p.hd;
   if(p.lang&&L10N[p.lang])setLang(p.lang,true);
-  applyTheme();await load();render();pushInit().then(()=>render())}
-(async()=>{try{setLang(detectLang(),true);const st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());if(st.needs_setup)showLogin(true);else if(!st.user)showLogin(false);else await initApp()}catch(e){console.error(e)}})();
+  applyTheme();
+  try{await load()}catch(e){console.error(e);if(!OFFLINE)throw e}
+  try{LASTSYNC=(HAVE_IDB&&await IDB.get('lastsync'))||0}catch(e){}
+  render();registerSW();
+  if(!OFFLINE){pushInit().then(()=>render());syncOutbox()}}
+setLang(detectLang(),true);initApp().catch(e=>console.error(e));

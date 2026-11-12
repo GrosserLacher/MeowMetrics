@@ -77,12 +77,13 @@ A.fnewfood=T(async()=>{const s=S.sh,n=(s.nfn||'').trim();if(!n||!s.man)return;co
 A.fmed=d=>{const s=S.sh;if(d.v in s.ms)delete s.ms[d.v];else{const m=MEDS.find(x=>x.id==d.v);s.ms[d.v]=m?m.dose:''}};
 A.nmedtog=()=>{S.sh.nmed=!S.sh.nmed};
 A.newmed=T(async()=>{const s=S.sh,n=(s.nmn||'').trim();if(!n)return;const r=await API('POST','/api/meds',{name:n,dose:s.nmd||'',unit:s.nmu||''});return()=>{if(s.t=='feed')s.ms[r.id]=s.nmd||'';else{s.med=r.id;s.dose=s.nmd||''}s.nmed=false;s.nmn='';s.nmd='';s.nmu=''}});
+const feedPend=(kind,mid,fid,cats,note,ts)=>{const m=(CAT[kind]||[]).find(x=>x.id==mid),f=m&&m.foods.find(x=>x.id==fid);return{t:'feed',kind,mid,fid,man:m?m.name:'',food:f?f.name:'',cats:{...cats},note,ts}};
 A.fsave=T(async()=>{const s=S.sh,names=Object.keys(s.sel);if(!names.length||!s.food)return;const ts=s.ts||nowIso();
   const body={cat_ratings:s.sel,manufacturer_id:+s.man,food_id:+s.food,notes:s.note,timestamp:ts,kind:s.kind};
-  if(s.edit)await API('PUT','/api/feedings/batch/'+encodeURIComponent(s.edit),body);else await API('POST','/api/feedings',body);
-  if(!s.edit&&s.dm&&ft('meds'))for(const [id,dose] of Object.entries(s.ms))await API('POST','/api/med-logs',{cat_names:names,med_id:+id,dose:doseStr(MEDS.find(x=>x.id==id),dose),with_food:true,timestamp:ts,notes:''});
+  if(s.edit)await API('PUT','/api/feedings/batch/'+encodeURIComponent(s.edit),body);else await mut('POST','/api/feedings',body,null,feedPend(s.kind,+s.man,+s.food,s.sel,s.note,ts));
+  if(!s.edit&&s.dm&&ft('meds'))for(const [id,dose] of Object.entries(s.ms)){const mm=MEDS.find(x=>x.id==id),ds=doseStr(mm,dose);await mut('POST','/api/med-logs',{cat_names:names,med_id:+id,dose:ds,with_food:true,timestamp:ts,notes:''},null,{t:'med',med:mm?mm.name:'',dose:ds,wf:true,cats:names,note:'',ts})}
   const n=Object.keys(s.ms).length,all=Object.values(s.sel).every(r=>r==NR());S.sh=null;
-  return()=>toast(s.edit?'Fütterung aktualisiert':(s.dm&&n?'Fütterung mit Präparat gespeichert':all?'Alle haben’s geliebt':'Fütterung gespeichert'))});
+  return()=>toast(s.edit?'Fütterung aktualisiert':okMsg(s.dm&&n?'Fütterung mit Präparat gespeichert':all?'Alle haben’s geliebt':'Fütterung gespeichert'))});
 
 /* ---------- Präparat separat ---------- */
 SH.meds=s=>{
@@ -97,8 +98,8 @@ A.mcat=d=>{const s=S.sh;d.v in s.sel?delete s.sel[d.v]:s.sel[d.v]=1};
 A.mall=()=>{CATS.forEach(c=>{S.sh.sel[c.name]=1})};
 A.medsel=v=>{const m=MEDS.find(x=>x.id==v);if(m)S.sh.dose=m.dose};
 A.msave=T(async()=>{const s=S.sh,names=Object.keys(s.sel),m=MEDS.find(x=>x.id==s.med);if(!names.length||!m)return;
-  await API('POST','/api/med-logs',{cat_names:names,med_id:m.id,dose:doseStr(m,s.dose),with_food:!!s.wf,notes:s.note,timestamp:s.ts||nowIso()});S.sh=null;
-  return()=>toast(m.name+' für '+names.join(', ')+' eingetragen')});
+  const ds=doseStr(m,s.dose),ts=s.ts||nowIso();await mut('POST','/api/med-logs',{cat_names:names,med_id:m.id,dose:ds,with_food:!!s.wf,notes:s.note,timestamp:ts},null,{t:'med',med:m.name,dose:ds,wf:!!s.wf,cats:names,note:s.note,ts});S.sh=null;
+  return()=>toast(okMsg(m.name+' für '+names.join(', ')+' eingetragen'))});
 
 /* ---------- Vorfall ---------- */
 const photoPick=(show,multi)=>show?`<div class="row nowrap photobtns"><label class="photo">${ico('camera',20)}<span>Foto aufnehmen</span><input type="file" id="xcam" accept="image/*" capture="environment"></label><label class="photo">${ico('image',20)}<span>Aus Galerie wählen</span><input type="file" id="ximg" accept="image/*" ${multi?'multiple':''}></label></div>`:'';
@@ -118,10 +119,15 @@ SH.inc=s=>{
 A.ity=d=>{const s=S.sh;s.ty=d.v;s.pv.forEach(u=>URL.revokeObjectURL(u));s.files=[];s.pv=[]};
 A.icat=d=>{S.sh.cat=d.v};A.vtype=d=>{S.sh.vtype=d.v};A.xb=d=>{S.sh.bristol=+d.v};A.xflag=d=>{S.sh.flags[d.v]=!S.sh.flags[d.v]};A.xkind=d=>{S.sh.fkind=d.v};
 A.xrm=d=>{const s=S.sh;URL.revokeObjectURL(s.pv[d.i]);s.files.splice(d.i,1);s.pv.splice(d.i,1)};
-A.isave=T(async()=>{const s=S.sh,fd=new FormData();fd.append('cat_name',s.cat);fd.append('timestamp',s.ts||nowIso());fd.append('notes',s.note);
-  if(s.ty=='vomit'){fd.append('vomit_type',s.vtype);if(s.files[0])fd.append('image',s.files[0]);const r=await API('POST','/api/vomits',undefined,fd);S.sh=null;return()=>{const v=V0.find(x=>x.id==r.id);if(v)S.sh={t:'res',v}}}
-  fd.append('kind',s.ty=='stool'?'stool':s.fkind);if(s.ty=='stool'){fd.append('bristol',s.bristol);fd.append('details',Object.keys(s.flags).filter(k=>s.flags[k]).join(','))}else fd.append('location',s.loc);
-  s.files.forEach(f=>fd.append('images',f));await API('POST','/api/findings',undefined,fd);const st=s.ty=='stool';S.sh=null;return()=>toast(st?'Kot dokumentiert':'Auffälligkeit dokumentiert')});
+A.isave=T(async()=>{const s=S.sh,ts=s.ts||nowIso(),E2=[['cat_name',s.cat],['timestamp',ts],['notes',s.note||'']];
+  if(s.ty=='vomit'){E2.push(['vomit_type',s.vtype]);if(s.files[0])E2.push(['image',s.files[0]]);
+    const r=await mut('POST','/api/vomits',undefined,E2,{t:'vomit',cat:s.cat,type:s.vtype,note:s.note,ts});S.sh=null;
+    return()=>{if(r.queued){toast(okMsg(''));return}const v=V0.find(x=>x.id==r.id);if(v)S.sh={t:'res',v}}}
+  const fl=Object.keys(s.flags).filter(k=>s.flags[k]),kind=s.ty=='stool'?'stool':s.fkind;
+  E2.push(['kind',kind]);if(s.ty=='stool'){E2.push(['bristol',s.bristol]);E2.push(['details',fl.join(',')])}else E2.push(['location',s.loc||'']);
+  s.files.forEach(f=>E2.push(['images',f]));
+  await mut('POST','/api/findings',undefined,E2,{t:'find',cat:s.cat,kind,bristol:s.bristol,flags:fl,loc:s.loc,note:s.note,ts});const st=s.ty=='stool';S.sh=null;
+  return()=>toast(okMsg(st?'Kot dokumentiert':'Auffälligkeit dokumentiert'))});
 SH.res=s=>{const v=s.v,l=rel(v)?lk(v):[];
   return['Zuordnung',`<div class="card flat">${!rel(v)?'<p>Nicht futterrelevant – keine Mahlzeiten zugeordnet.</p>':l.length?`<p><b>Gefüttert in den 12 h davor:</b></p><ul class="plain">${l.map(b=>`<li>${hm(b.ts)} ${esc(b.man)} – ${esc(b.food)}</li>`).join('')}</ul>`:'<p>Keine Mahlzeit in den 12 h davor gefunden.</p>'}</div>`,`<button class="btn primary block" data-a="shclose">Fertig</button>`]};
 
@@ -134,7 +140,7 @@ SH.meas=s=>{const f=HF.fields.find(x=>x.id==s.f);
    `<button class="btn primary block" data-a="measave" ${s.cat&&s.f?'':'disabled'}>${ico('check',18)} Wert speichern</button>`]};
 A.mecat=d=>{S.sh.cat=d.v};
 A.measave=T(async()=>{const s=S.sh,v=String(s.val).replace(',','.').trim(),c=catByName(s.cat);if(v===''||isNaN(+v)){toast('Bitte einen Wert eingeben');return}
-  await API('POST','/api/health/values',{cat_id:c.id,field_id:+s.f,value:+v,ts:s.ts||nowIso(),note:s.note||''});S.sh=null;return()=>toast('Wert gespeichert')});
+  const ts=s.ts||nowIso(),fl=HF.fields.find(x=>x.id==s.f);await mut('POST','/api/health/values',{cat_id:c.id,field_id:+s.f,value:+v,ts,note:s.note||''},null,{t:'val',cat_id:c.id,field_id:+s.f,value:+v,ts,note:s.note||'',label:fl?fl.name:''});S.sh=null;return()=>toast(okMsg('Wert gespeichert'))});
 
 /* ---------- Behandlungs-Log ---------- */
 SH.tlog=s=>{const a=activeTR(),lt=LOGT.find(x=>x[0]==s.type);
@@ -144,7 +150,7 @@ SH.tlog=s=>{const a=activeTR(),lt=LOGT.find(x=>x[0]==s.type);
    sect('Beschreibung & Zeit',`${inp('sh.comment',{ph:lt?lt[2]:''})}<div style="height:8px"></div><input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}">`),
    `<button class="btn primary block" data-a="tlsave">${ico('check',18)} Eintrag speichern</button>`]};
 A.tltype=d=>{S.sh.type=d.v};
-A.tlsave=T(async()=>{const s=S.sh;await API('POST','/api/health/treatments/'+s.tid+'/logs',{log_type:s.type,value_comment:s.comment,timestamp:s.ts||null});S.sh=null;return()=>toast('Eintrag gespeichert')});
+A.tlsave=T(async()=>{const s=S.sh;const ts=s.ts||nowIso();await mut('POST','/api/health/treatments/'+s.tid+'/logs',{log_type:s.type,value_comment:s.comment,timestamp:ts},null,{t:'tlog',tid:+s.tid,type:s.type,comment:s.comment,ts});S.sh=null;return()=>toast(okMsg('Eintrag gespeichert'))});
 
 /* ---------- Bearbeiten (Verlauf) ---------- */
 SH.emed=s=>['Präparat bearbeiten',`<p class="muted"><b>${esc(s.med)}</b> – ${esc(s.cats.join(', '))}</p>`+sect('Dosis',inp('sh.dose',{ph:'z. B. 1 Tablette'})+sw('sh.wf','Zusammen mit der Fütterung gegeben'))+sect('Zeitpunkt & Anmerkung',`<input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}"><div style="height:8px"></div>${inp('sh.note',{ph:'Anmerkung (optional)'})}`),`<button class="btn primary block" data-a="emsave">Änderungen speichern</button>`];
@@ -172,15 +178,15 @@ A.del=d=>{const url={f:'/api/feedings/batch/',m:'/api/med-logs/batch/',v:'/api/v
   ask('Eintrag löschen?','Dieser Eintrag wird endgültig gelöscht.',T(async()=>{await API('DELETE',url+encodeURIComponent(d.id));return()=>toast('Gelöscht')}));return false};
 /* Schnell-Aktionen (Heute) */
 const lastFood=()=>[...B0].filter(x=>x.kind=='food').sort((a,c)=>c.ts-a.ts)[0];
-const repPost=T(async(b,sel,ts)=>{await API('POST','/api/feedings',{cat_ratings:sel,manufacturer_id:b.mid,food_id:b.fid,notes:'',timestamp:ts||nowIso(),kind:'food'});return()=>toast('Wie zuletzt gefüttert: '+b.food)});
+const repPost=T(async(b,sel,ts)=>{const t2=ts||nowIso();await mut('POST','/api/feedings',{cat_ratings:sel,manufacturer_id:b.mid,food_id:b.fid,notes:'',timestamp:t2,kind:'food'},null,feedPend('food',b.mid,b.fid,sel,'',t2));return()=>toast(okMsg('Wie zuletzt gefüttert: '+b.food))});
 A.repeat=()=>{const b=lastFood();if(!b)return;if(PREFS.repeatSkip){repPost(b,{...b.cats});return}S.sh={t:'rep',b,sel:{...b.cats},ts:nowIso(),skip:false}};
 SH.rep=s=>['Wie zuletzt füttern',`<p class="muted"><b>${esc(s.b.food)}</b> · ${esc(s.b.man)}</p>`+rateBlock({sel:s.sel},'Wie war die Akzeptanz?')+
   sect('Zeitpunkt',`<input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}">`)+
   sw('sh.skip','Künftig nicht mehr fragen – Bewertung 1:1 übernehmen')+'<p class="muted fine">Das lässt sich jederzeit unter Mehr → Darstellung → Eingabe wieder einschalten.</p>',
   `<button class="btn primary block" data-a="repsave">${ico('check',18)} Fütterung speichern</button>`];
-A.repsave=T(async()=>{const s=S.sh;await API('POST','/api/feedings',{cat_ratings:s.sel,manufacturer_id:s.b.mid,food_id:s.b.fid,notes:'',timestamp:s.ts||nowIso(),kind:'food'});if(s.skip){PREFS.repeatSkip=1;savePrefs()}S.sh=null;return()=>toast('Wie zuletzt gefüttert: '+s.b.food)});
+A.repsave=T(async()=>{const s=S.sh;const t2=s.ts||nowIso();await mut('POST','/api/feedings',{cat_ratings:s.sel,manufacturer_id:s.b.mid,food_id:s.b.fid,notes:'',timestamp:t2,kind:'food'},null,feedPend('food',s.b.mid,s.b.fid,s.sel,'',t2));if(s.skip){PREFS.repeatSkip=1;savePrefs()}S.sh=null;return()=>toast(okMsg('Wie zuletzt gefüttert: '+s.b.food))});
 A.stdDrink=T(async()=>{const n=Object.keys(selAll());if(!n.length){toast('Lege zuerst ein Tier an');return}const m=CAT.drink.find(x=>x.foods.some(f=>f.name==DD));if(!m)return;const f=m.foods.find(z=>z.name==DD);
-  await API('POST','/api/feedings',{cat_ratings:Object.fromEntries(n.map(x=>[x,NR()])),manufacturer_id:m.id,food_id:f.id,timestamp:nowIso(),kind:'drink'});return()=>toast(DD+' eingetragen')});
+  const cr=Object.fromEntries(n.map(x=>[x,NR()])),t2=nowIso();await mut('POST','/api/feedings',{cat_ratings:cr,manufacturer_id:m.id,food_id:f.id,timestamp:t2,kind:'drink'},null,feedPend('drink',m.id,f.id,cr,'',t2));return()=>toast(okMsg(DD+' eingetragen'))});
 
 /* ---------- Tierinfo (nur lesend) und Behandlung starten ---------- */
 const petPick=(s,a)=>CATS.length>1?sect('Welches Tier?',`<div class="chips">${CATS.map(c=>achip(c.name,s.cat==c.name,a)).join('')}</div>`):'';

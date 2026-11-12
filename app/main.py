@@ -249,6 +249,9 @@ def init_auth_tables():
         pw_hash TEXT NOT NULL, is_admin INTEGER DEFAULT 0, prefs TEXT DEFAULT '{}')""")
     conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
         token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created REAL, last_seen REAL)""")
+    # Offline-Synchronisation: bereits verarbeitete Anfragen (Kennung vom Gerät), damit nichts doppelt gespeichert wird
+    conn.execute("CREATE TABLE IF NOT EXISTS sync_ops (client_id TEXT PRIMARY KEY, created REAL, status INTEGER, body BLOB)")
+    conn.execute("DELETE FROM sync_ops WHERE created < ?", (time.time() - 90 * 86400,))
     conn.commit()
     conn.close()
 
@@ -296,6 +299,21 @@ async def require_login(request: Request, call_next):
             return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401)
         request.state.user = user
         audit.set_user(user)
+    cid = request.headers.get("x-client-id")
+    if cid and p.startswith("/api/") and request.method in ("POST", "PUT", "DELETE") and 8 <= len(cid) <= 80:
+        conn = get_db()
+        row = conn.execute("SELECT status, body FROM sync_ops WHERE client_id = ?", (cid,)).fetchone()
+        conn.close()
+        if row:   # dieselbe Anfrage wurde schon verarbeitet (z. B. Verbindungsabbruch nach dem Speichern): gleiche Antwort, nichts doppelt
+            return Response(content=row["body"], status_code=row["status"], media_type="application/json", headers={"X-Replayed": "1"})
+        response = await call_next(request)
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        if response.status_code < 300:
+            conn = get_db()
+            conn.execute("INSERT OR IGNORE INTO sync_ops (client_id, created, status, body) VALUES (?, ?, ?, ?)", (cid, time.time(), response.status_code, body))
+            conn.commit()
+            conn.close()
+        return Response(content=body, status_code=response.status_code, media_type=response.media_type or "application/json")
     return await call_next(request)
 
 

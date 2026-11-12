@@ -10,16 +10,17 @@ const moreItems=()=>[
   ['catalog','Katalog','Hersteller, Sorten, Präparate, Kategorien, Bewertung','book',feedOn()||ft('vomit')],
   ['vets','Tierarztpraxen','Adressbuch für Berichte und Tier-Akte','steth',ft('medical')||ft('report')],
   ['push','Erinnerungen','Push-Benachrichtigungen','bell',ft('push')],
+  ['sync','Synchronisation','Verbindung und Offline-Einträge','repeat',true],
   ['features','Funktionen','Funktionen ein- und ausschalten','toggle',true],
   ['look','Darstellung','Design, Sprache, Header-Tier, Eingabe','palette',true],
   ['backup','Daten & Backup','CSV-Export und Datenbank-Sicherung','db',true],
   ['account','Konto & Benutzer','Anmeldung und weitere Benutzer','user',true]].filter(x=>x[4]);
-A.mopen=d=>{S.more=d.v;if(d.v=='account')loadUsers()};A.mback=()=>{S.more=''};
-const MT={catalog:'Katalog',vets:'Tierarztpraxen',push:'Erinnerungen',features:'Funktionen',look:'Darstellung',backup:'Daten & Backup',account:'Konto & Benutzer'};
+A.mopen=d=>{S.more=d.v;if(d.v=='account')loadUsers();if(d.v=='sync')refreshPending().then(render)};A.mback=()=>{S.more=''};
+const MT={sync:'Synchronisation',catalog:'Katalog',vets:'Tierarztpraxen',push:'Erinnerungen',features:'Funktionen',look:'Darstellung',backup:'Daten & Backup',account:'Konto & Benutzer'};
 function vMore(){
   if(!S.more||!moreItems().some(x=>x[0]==S.more))S.more='';
-  if(!S.more)return`<div class="rows list">${moreItems().map(([k,t,d,i])=>`<button class="li link big" data-a="mopen" data-v="${k}"><span class="ti">${ico(i,20)}</span><span class="grow"><b>${t}</b><small class="muted">${d}</small></span>${ico('chev',18)}</button>`).join('')}</div><p class="muted fine center">${esc(window.APP_NAME||'')}</p>`;
-  const body={catalog:vCatalog,vets:vVets,push:pushCard,features:vFeatures,look:vLook,backup:vBackup,account:vAccount}[S.more]();
+  if(!S.more)return`<div class="rows list">${moreItems().map(([k,t,d,i])=>`<button class="li link big" data-a="mopen" data-v="${k}"><span class="ti">${ico(i,20)}</span><span class="grow"><b>${t}</b><small class="muted">${d}</small></span>${ico('chev',18)}</button>`).join('')}</div><p class="muted fine center">${esc(window.APP_NAME||'')}</p>${SECURE?'':`<p class="muted fine center">${ico('lock',12)} http-Verbindung: Offline-Start, Erinnerungen, Teilen und Zwischenablage funktionieren nur über https.</p>`}`;
+  const body={sync:vSync,catalog:vCatalog,vets:vVets,push:pushCard,features:vFeatures,look:vLook,backup:vBackup,account:vAccount}[S.more]();
   return`<button class="back" data-a="mback">${ico('back',18)} Mehr</button><h2 class="ph">${MT[S.more]}</h2>${body}`}
 
 /* ---------- Katalog ---------- */
@@ -172,3 +173,10 @@ function pushCard(){let b;
   else if(!PUSH.avail)b='<p class="muted">Der Server hat noch keine Push-Unterstützung. Installiere im Container das Paket „pywebpush“.</p>';
   else b=`<p class="muted">Erinnerung ca. 2 Stunden nach den üblichen Fütterungszeiten, falls bis dahin kein Futter eingetragen wurde (Snacks und Getränke zählen nicht). Dazu kommen Geburtstags-Nachrichten (zwei Wochen vorher und am Geburtstag um 09:00 Uhr) und Impf-Erinnerungen. ${PUSH.slots.length?`Erkannte Zeiten: <b>${PUSH.slots.map(s=>s.time+' → '+s.reminder).join(', ')}</b>.`:'Noch keine Fütterungszeiten erkannt (mindestens 3 Tage Daten nötig).'}</p><div class="row">${PUSH.sub?'<button class="btn sm ghost" data-a="pushTest">Test: Futter</button><button class="btn sm ghost" data-a="pushTestB">Test: Geburtstag</button><button class="btn sm ghost" data-a="pushTestV">Test: Impfung</button><button class="btn sm ghost" data-a="pushTestT">Test: Behandlung</button><button class="btn sm ghost" data-a="pushOff">Deaktivieren</button>':'<button class="btn sm primary" data-a="pushOn">Erinnerungen aktivieren</button>'}</div>`;
   return card('',b)}
+
+/* ---------- Synchronisation ---------- */
+const httpsNote=()=>SECURE?'':`<p class="muted fine">${ico('lock',12)} Du nutzt eine unverschlüsselte Verbindung (http). Der Offline-Start der App, Erinnerungen, App-Installation, Teilen und das Kopieren in die Zwischenablage funktionieren nur über https. Ein Eintrag, den du bei geöffneter App ohne Verbindung machst, wird trotzdem gespeichert und später gesendet.</p>`;
+function vSync(){
+  let o=card('Verbindung',`<div class="kvr"><span class="muted">Status</span><b>${OFFLINE?'Offline':'Online'}</b></div><div class="kvr"><span class="muted">Ausstehende Einträge</span><b>${PENDING}</b></div><div class="kvr"><span class="muted">Letzte Synchronisation</span><b>${LASTSYNC?fmt(LASTSYNC):'–'}</b></div><button class="btn primary block" style="margin-top:12px" data-a="syncnow" ${SYNCING?'disabled':''}>${ico('repeat',18)} Jetzt synchronisieren</button><p class="muted fine">Neue Einträge (Füttern, Präparat, Vorfall, Messwert, Behandlungs-Eintrag) werden ohne Verbindung auf dem Gerät gespeichert und automatisch gesendet, sobald der Server wieder erreichbar ist. Bearbeiten, Löschen und Stammdaten benötigen eine Verbindung.</p>${httpsNote()}`);
+  if(OPS.length)o+=card('Wartet auf Synchronisation',`<div class="rows">${OPS.map(op=>`<div class="li"><span class="grow"><b>${esc(opLabel(op))}</b><small class="muted">${fmt(op.ts)}</small></span><button class="ib dng" data-a="opdel" data-id="${op.id}" aria-label="Verwerfen">${ico('trash',16)}</button></div>`).join('')}</div>`);
+  return o}

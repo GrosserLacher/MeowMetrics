@@ -60,7 +60,7 @@ function applyHide(){
   FD=FD0.filter(f=>f.cat=='Unbekannt'||act.has(f.cat));
 }
 async function load(){
-  const d=await API('GET','/api/bootstrap');
+  let d;try{d=await API('GET','/api/bootstrap');if(HAVE_IDB)IDB.set('bootstrap',d).catch(()=>{})}catch(e){if(!e.offline||!HAVE_IDB)throw e;d=await IDB.get('bootstrap');if(!d)throw e}
   PRF={};(d.profiles||[]).forEach(p=>{PRF[p.id]=p});
   CATS=d.animals.map((a,i)=>({id:a.id,name:a.name,sp:a.species||'cat',i,photo:(PRF[a.id]||{}).photo||'',life:(PRF[a.id]||{}).lifestyle||''}));
   VTYPES=d.vaccine_types||[];
@@ -80,6 +80,7 @@ async function load(){
   FD0=d.findings.map(x=>({id:x.id,cat:x.cat_name,kind:x.kind,bristol:x.bristol,flags:x.details||[],loc:x.location||'',ts:new Date(x.timestamp).getTime(),note:x.notes||'',by:x.created_by_name||'',imgs:x.images||[]}));
   const fx=d.features||{};FT=fx.features||{};FT_DONE=!!fx.setup_done;MULTI=(fx.users||1)>1;
   HF=d.health_overview||{fields:[],birthdays:{}};HV=d.health_values||[];VAC=d.vaccinations||[];TR=d.treatments||[];VETS=d.vets||[];
+  await applyPending();
   applyHide();
   if(typeof maybeWizard=='function')maybeWizard();
 }
