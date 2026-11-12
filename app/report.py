@@ -184,9 +184,9 @@ TXT = {
 
 
 EXTRA = {
-    "de": dict(lifestyle=dict(indoor="Hauskatze", outdoor="Freigänger"), emerg="Notfall-Info", allergies="Allergien / Unverträglichkeiten",
+    "de": dict(lifestyle=dict(indoor="Hauskatze", occasional="Hauskatze (gelegentlich Freigang)", outdoor="Freigänger"), emerg="Notfall-Info", allergies="Allergien / Unverträglichkeiten",
                conditions="Chronische Diagnosen / Vorerkrankungen", permanent_meds="Dauerhafte Medikation & Hinweise", v_planned="geplant", v_noexp="kein Ablauf"),
-    "en": dict(lifestyle=dict(indoor="Indoor cat", outdoor="Outdoor cat"), emerg="Emergency info", allergies="Allergies / intolerances",
+    "en": dict(lifestyle=dict(indoor="Indoor cat", occasional="Mostly indoor (occasional outdoor)", outdoor="Outdoor cat"), emerg="Emergency info", allergies="Allergies / intolerances",
                conditions="Chronic diagnoses / pre-existing conditions", permanent_meds="Permanent medication & notes", v_planned="planned", v_noexp="no expiry"),
 }
 

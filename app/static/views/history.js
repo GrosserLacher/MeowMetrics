@@ -14,7 +14,7 @@ function vList(){
   let o=`<div class="filters"><div class="chips scroll">${chip('hfc','all',f.cat=='all','Alle Tiere')}${CATS.map(c=>achip(c.name,f.cat==c.name,'hfc')).join('')}</div>
   <div class="chips scroll">${chip('hfk','all',f.kind=='all','Alle')}${ks.map(([k,l])=>chip('hfk',k,f.kind==k,l)).join('')}</div>
   ${CATS.length?swc('data-hd','Gelöschte Tiere ausblenden',HD):''}</div>`;
-  o+=it.slice(0,f.n).map(histItem).join('')||empty('list','Noch keine Einträge','Mit „Eintragen“ legst du den ersten Eintrag an.',`<button class="btn primary" data-a="addmenu">${ico('plus',18)} Eintragen</button>`);
+  o+=it.slice(0,f.n).map(histItem).join('')||empty('list','Noch keine Einträge','Mit „Aktionen“ legst du den ersten Eintrag an.',`<button class="btn primary" data-a="addmenu">${ico('plus',18)} Aktionen</button>`);
   if(it.length>f.n)o+=`<button class="btn ghost block" data-a="more">Weitere anzeigen (${it.length-f.n})</button>`;
   return o}
 A.hfc=d=>{S.fl.cat=d.v;S.fl.n=60};A.hfk=d=>{S.fl.kind=d.v;S.fl.n=60};A.more=()=>{S.fl.n+=60};

@@ -71,15 +71,15 @@ function pVac(c){const all=VAC.filter(v=>v.cat_id==c.id),vs=all.filter(v=>!vplan
   if(pl.length)o+=card('Geplante Impfungen',`<div class="rows">${pl.map(v=>{const st=vacState(v);return`<div class="li col"><div class="row between nowrap"><span><b>${esc(v.vaccine_name)}</b><small class="muted">geplant für ${dFmt(v.planned_date)}</small></span>${pill(st.t,st.c)}</div><div class="row"><button class="chip sm" data-a="vdone" data-id="${v.id}">${ico('check',14)} Verabreicht</button><button class="chip sm dngtxt" data-a="vdel" data-id="${v.id}">Löschen</button></div></div>`}).join('')}</div><p class="muted fine">Du wirst 14 Tage und 3 Tage vorher sowie am Tag selbst erinnert.</p>`);
   o+=card('Impfung hinzufügen',`${field('Impfart',sel('vac.t',[...VTYPES.map(x=>[x.name,x.name]),['__new','+ Neue Impfart …']],{r:true}))}${V.t=='__new'?field('Name der neuen Impfart',inp('vac.nt',{ph:'z. B. Leukose'})):''}
   ${sw('vac.plan','Zukünftige Impfung planen (mit Erinnerung)',true)}
-  ${V.plan?field('Geplant für',`<input type="date" data-b="vac.pd" value="${esc(V.pd||'')}" min="${td}">`):`<div class="grid2">${field('Gegeben',`<input type="date" data-b="vac.g" value="${V.g}">`)}${V.noexp?'':field('Gültig bis',`<input type="date" data-b="vac.u" value="${V.u}">`)}</div>${sw('vac.noexp','Kein Ablaufdatum (Impfung läuft nie ab)',true)}`}
+  ${V.plan?field('Geplant für',`<input type="date" data-b="vac.pd" value="${esc(V.pd||'')}" min="${td}">`):`${field('Gegeben',`<input type="date" data-b="vac.g" value="${V.g}">`)}<div class="lbl">Wie lange hält die Impfung?</div>${durPick('vac',V.g)}`}
   <button class="btn primary block" data-a="vadd" data-c="${c.id}">${ico('check',18)} ${V.plan?'Impfung planen':'Impfung eintragen'}</button><p class="muted fine">Impfarten verwaltest du unter Mehr → Katalog → Impfungen. Läuft eine Impfung in den nächsten 30 Tagen ab, bekommst du eine Push-Erinnerung (7 Tage vorher und am Ablauftag nochmal).</p>`);
   return o}
 A.vadd=T(async d=>{const V=S.vac;let n=V.t=='__new'?(V.nt||'').trim():V.t;if(!n){toast('Bitte die Impfart wählen oder eingeben');return}
   if(V.plan&&!V.pd){toast('Bitte ein Datum für die Planung wählen');return}
   if(V.t=='__new')await API('POST','/api/health/vaccine-types',{name:n});
-  await API('POST','/api/health/vaccinations',{cat_id:+d.c,vaccine_name:n,date_given:V.plan?null:(V.g||null),valid_until:V.plan||V.noexp?null:(V.u||null),no_expiry:!!V.noexp&&!V.plan,planned_date:V.plan?V.pd:null});
-  S.vac={t:'',nt:'',g:'',u:'',noexp:false,plan:false,pd:''};return()=>toast(V.plan?'Impfung geplant':'Impfung eingetragen')});
-A.vdone=d=>{const v=VAC.find(x=>x.id==d.id);if(!v)return;const c=CATS.find(x=>x.id==v.cat_id)||{};S.sh={t:'vdone',id:v.id,name:v.vaccine_name,cat:c.name||'',g:nowIso().slice(0,10),u:'',noexp:false}};
+  await API('POST','/api/health/vaccinations',{cat_id:+d.c,vaccine_name:n,date_given:V.plan?null:(V.g||null),valid_until:V.plan?null:durUntil(V.g,V.dur,V.u),no_expiry:V.dur=='none'&&!V.plan,planned_date:V.plan?V.pd:null});
+  S.vac={t:'',nt:'',g:'',u:'',dur:'1y',plan:false,pd:''};return()=>toast(V.plan?'Impfung geplant':'Impfung eingetragen')});
+A.vdone=d=>{const v=VAC.find(x=>x.id==d.id);if(!v)return;const c=CATS.find(x=>x.id==v.cat_id)||{};S.sh={t:'vdone',id:v.id,name:v.vaccine_name,cat:c.name||'',g:nowIso().slice(0,10),u:'',dur:'1y'}};
 A.vdel=d=>{const v=VAC.find(x=>x.id==d.id)||{};ask('Impfung löschen?',`„${v.vaccine_name||''}“ wird aus dem Impfpass entfernt.`,T(async()=>{await API('DELETE','/api/health/vaccinations/'+d.id)}));return false};
 
 /* ----- Werte & Trend ----- */

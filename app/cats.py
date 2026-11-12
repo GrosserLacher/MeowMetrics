@@ -40,7 +40,7 @@ router = APIRouter(prefix="/api/animals")
 TEXT_FIELDS = {"breed": 80, "color": 80, "chip_number": 40, "chip_location": 80, "markings": 300,
                "allergies": 2000, "conditions": 2000, "permanent_meds": 2000, "attending_doctor": 120}
 GENDERS = ("", "female", "female_spayed", "male", "male_neutered")
-LIFESTYLES = ("", "indoor", "outdoor")   # Hauskatze / Freigänger (nur Katzen)
+LIFESTYLES = ("", "indoor", "occasional", "outdoor")   # Hauskatze / Hauskatze mit gelegentlichem Freigang / Freigänger (nur Katzen)
 COLUMNS = list(TEXT_FIELDS) + ["gender_fixed", "chip_date", "lifestyle", "photo"]
 
 

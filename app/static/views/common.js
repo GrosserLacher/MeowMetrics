@@ -5,8 +5,9 @@ const getPath=p=>p.split('.').reduce((o,k)=>o==null?o:o[k],S);
 /* Aktion ausführen, danach neu laden und zeichnen (Fehler werden vom API-Aufruf als Hinweis gezeigt) */
 const T=f=>async(...a)=>{try{const cb=await f(...a);await load();if(cb)cb()}catch(e){console.warn(e);try{await load()}catch(_){}}render()};
 
+A.dur=d=>{setPath(d.p+'.dur',d.v)};
 const chip=(a,v,on,txt,x='')=>`<button type="button" class="chip ${on?'on':''}" data-a="${a}" data-v="${esc(v)}" ${x}>${txt}</button>`;
-const achip=(name,on,a)=>{const c=catByName(name);return`<button type="button" class="chip pet ${on?'on':''}" style="${avStyle(c)}" data-a="${a}" data-v="${esc(name)}"><i class="ini ${spc(c)}">${esc(name[0]||'?')}</i><span class="cn">${esc(name)}</span></button>`};
+const achip=(name,on,a)=>{const c=catByName(name);return`<button type="button" class="chip pet ${on?'on':''}" style="${avStyle(c)}" data-a="${a}" data-v="${esc(name)}">${photoOn(c)?`<i class="ini ph" style="${avStyle(c)};background-image:url('${esc(c.photo)}')"></i>`:`<i class="ini ${spc(c)}">${esc(name[0]||'?')}</i>`}<span class="cn">${esc(name)}</span></button>`};
 const seg=(items,cur,a)=>`<div class="seg" role="tablist">${items.map(([k,l,i])=>`<button type="button" role="tab" class="${cur==k?'on':''}" data-a="${a}" data-v="${k}">${i?ico(i,16):''}<span>${l}</span></button>`).join('')}</div>`;
 const field=(l,inner,cls='')=>`<label class="fld ${cls}"><span class="lbl">${l}</span>${inner}</label>`;
 const inp=(p,o={})=>`<input type="${o.t||'text'}" data-b="${p}" value="${esc(getPath(p)==null?'':getPath(p))}" ${o.ph?`placeholder="${esc(o.ph)}"`:''} ${o.x||''}>`;

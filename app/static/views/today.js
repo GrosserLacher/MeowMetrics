@@ -27,7 +27,7 @@ function vToday(){
   const lastF=[...B].filter(x=>x.kind=='food').sort((a,b)=>b.ts-a.ts)[0],due=dueItems();
   let o=`<header class="hero"><div><h1>${G[k]}</h1><p>${esc(sub)}</p><div class="avs">${CATS.map(c=>av(c)).join('')}</div></div></header>`;
   if(!CATS.length)return o+card('Willkommen',empty('paw','Noch kein Tier','Lege dein erstes Tier an, dann kannst du loslegen.',`<button class="btn primary" data-a="newpet">${ico('plus',18)} Tier anlegen</button>`));
-  o+=`<button class="btn primary big block cta" data-a="addmenu">${ico('plus',22)} Jetzt eintragen</button>`;
+  o+=`<button class="btn primary big block cta" data-a="addmenu">${ico('plus',22)} Aktion starten</button>`;
   const q=[];
   if(ft('food')&&lastF)q.push(`<button class="qa" data-a="repeat"><span class="ti">${ico('repeat',20)}</span><span><b>Wie zuletzt füttern</b><small>${esc(lastF.food)} · ${esc(Object.keys(lastF.cats).join(', '))}${PREFS.repeatSkip?' · Bewertung wird 1:1 übernommen':''}</small></span></button>`);
   if(ft('drink'))q.push(`<button class="qa" data-a="stdDrink"><span class="ti">${ico('glass',20)}</span><span><b>Standardgetränk</b><small>${esc(DD)} für ${Object.keys(selAll()).length||'alle'} Tiere</small></span></button>`);

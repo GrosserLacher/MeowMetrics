@@ -30,7 +30,7 @@ function render(){
   a.className=(S.tab=='today'&&heroArt()=='none'?'nocat ':'')+'view';
   a.innerHTML={today:vToday,hist:vHist,pets:vPets,more:vMore}[S.tab]();
   const canAdd=menuTiles().length>0&&CATS.length>=0;
-  $('#nav').innerHTML=`<div class="navi">${tabs.map(t=>t=='fab'?(canAdd?`<button class="fab" data-a="addmenu" aria-label="Eintragen">${ico('plus',28)}<span>Eintragen</span></button>`:'<span class="fabgap"></span>'):`<button class="${S.tab==t[0]?'on':''}" data-a="tab" data-v="${t[0]}" aria-label="${t[1]}">${ico(t[2],22)}<span>${t[1]}</span></button>`).join('')}</div>`;
+  $('#nav').innerHTML=`<div class="navi">${tabs.map(t=>t=='fab'?(canAdd?`<button class="fab" data-a="addmenu" aria-label="Aktionen">${ico('plus',28)}<span>Aktionen</span></button>`:'<span class="fabgap"></span>'):`<button class="${S.tab==t[0]?'on':''}" data-a="tab" data-v="${t[0]}" aria-label="${t[1]}">${ico(t[2],22)}<span>${t[1]}</span></button>`).join('')}</div>`;
   $$('.cpv').forEach(e=>{const x=ART[+e.dataset.i];if(x&&x[1])e.style.backgroundImage=x[1](e.dataset.s)});
   renderSheet();renderDlg();renderWizard();xoRender();renderLb()}
 

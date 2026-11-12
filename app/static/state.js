@@ -5,7 +5,7 @@ let VTYPES=[],CATS=[],CAT={food:[],snack:[],drink:[]},B0=[],B=[],V0=[],V=[],MG0=
 const KL={food:'Futter',snack:'Snack',drink:'Getränk'};
 const S={tab:'today',hist:'list',more:'',pet:null,pt:'profile',sh:null,dlg:null,
   fl:{cat:'all',kind:'all',n:60},an:{kind:'food',cat:'all'},hv:{f:null,r:180},
-  vac:{t:'',nt:'',g:'',u:'',noexp:false,plan:false,pd:''},nfld:{n:'',u:''},tf:null,tx:{},em:null,np:null,ck:'food',co:{},nv:{},pw:{cur:'',n1:'',n2:''},rp:null};
+  vac:{t:'',nt:'',g:'',u:'',dur:'1y',plan:false,pd:''},nfld:{n:'',u:''},tf:null,tx:{},em:null,np:null,ck:'food',co:{},nv:{},pw:{cur:'',n1:'',n2:''},rp:null};
 
 /* ---------- Hilfsfunktionen ---------- */
 const ft=k=>FT[k]!==false;
@@ -30,14 +30,20 @@ const ccol=c=>(c&&((PREFS.ui.cc||{})[c.id]))||(c?DC[c.i%6]:'#d9c7b8');
 const ctext=x=>{const n=parseInt(x.slice(1),16),l=(.299*(n>>16)+.587*(n>>8&255)+.114*(n&255))/255;return l>.6?'#1d1a17':'#fff'};
 const avStyle=c=>{const x=ccol(c);return`--cc:${x};--ct:${ctext(x)}`};
 const spc=c=>c&&c.sp=='dog'?'dog':'cat';
-const av=(c,cls='')=>`<span class="av ${spc(c)} ${cls}" style="${avStyle(c)}">${esc((c?c.name:'?')[0])}</span>`;
-const pav=(c,cls='')=>c&&c.photo?`<img class="av ${cls} ph" style="${avStyle(c)}" src="${esc(c.photo)}" alt="">`:av(c,cls);
-const LIFE={indoor:'Hauskatze',outdoor:'Freigänger'};
+const avi=(c,cls='')=>`<span class="av ${spc(c)} ${cls}" style="${avStyle(c)}">${esc((c?c.name:'?')[0])}</span>`;
+const photoOn=c=>!!(PREFS.photoAv&&c&&c.photo);
+const pav=(c,cls='')=>c&&c.photo?`<img class="av ${cls} ph" style="${avStyle(c)}" src="${esc(c.photo)}" alt="">`:avi(c,cls);
+const av=(c,cls='')=>photoOn(c)?pav(c,cls):avi(c,cls);
+const LIFE={indoor:'Hauskatze',occasional:'Hauskatze mit gelegentlichem Freigang',outdoor:'Freigänger'};
 const selAll=()=>PREFS.autoAll===0||PREFS.autoAll===false?{}:Object.fromEntries(CATS.map(c=>[c.name,NR()]));
 const activeTR=()=>TR.filter(t=>t.is_active);
 const UNITS=['Tablette','Kapsel','mg','g','ml','Tropfen','Hub','Stück','IE','µg'];
 const doseStr=(m,a)=>{a=String(a==null?'':a).trim();return a?a+(m&&m.unit?' '+m.unit:''):''};
 const unitList=()=>`<datalist id="ulist">${UNITS.map(u=>`<option value="${u}">`).join('')}</datalist>`;
+const DURS=[['6m','6 Monate'],['1y','1 Jahr'],['2y','2 Jahre'],['3y','3 Jahre'],['none','Läuft nie ab'],['custom','Eigenes Datum']];
+const addDur=(g,dur)=>{const m={'6m':6,'1y':12,'2y':24,'3y':36}[dur];if(!m||!g)return null;const d=new Date(g+'T00:00');d.setMonth(d.getMonth()+m);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
+const durUntil=(g,dur,u)=>dur=='none'?null:dur=='custom'?(u||null):addDur(g,dur);
+const durPick=(p,g,u)=>{const o=getPath(p)||{},un=durUntil(g,o.dur,o.u);return`<div class="chips">${DURS.map(([k,l])=>chip('dur',k,o.dur==k,l,`data-p="${p}"`)).join('')}</div>${o.dur=='custom'?field('Gültig bis',`<input type="date" data-b="${p}.u" value="${esc(o.u||'')}">`):un?`<p class="muted fine">Gültig bis ${dFmt(un)}</p>`:o.dur=='none'?'<p class="muted fine">Kein Ablaufdatum – keine Ablauf-Erinnerung.</p>':''}`};
 const tms=x=>new Date(x).getTime();
 
 /* ---------- Einstellungen pro Benutzer ---------- */

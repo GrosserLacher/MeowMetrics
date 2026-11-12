@@ -166,3 +166,5 @@ img.av{display:block;object-fit:cover;background:var(--cc)}img.av::before,img.av
 .kvr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.kvr:last-child{border-bottom:0}.kvr b{text-align:right;font-weight:600}
 .sdot{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.15)}
 .photobtns .av{flex:none;align-self:center}
+
+.ini.ph{background-size:cover;background-position:center;color:transparent}.ini.ph::before,.ini.ph::after{display:none}

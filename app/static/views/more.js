@@ -116,6 +116,7 @@ function vLook(){const U=PREFS.ui,th=PREFS.theme||'auto',dk=isDark(),cs=getCompu
   card('Schrift',fs('fh',FHL,'Fraunces','Überschriften')+fs('fb',FBL,'Inter','Fließtext')+`<label class="cp"><span>Schriftgröße <output id="fso">${U.fs||15}px</output></span><input type="range" min="13" max="19" step="1" value="${U.fs||15}" data-fs></label>`)+
   card('Sprache',`<p class="muted">Sprache der Oberfläche und der Exporte.</p><div class="chips">${Object.entries((window.I18N||{}).languages||{de:'Deutsch'}).map(([k,n])=>chip('setlang',k,LANG==k,esc(n))).join('')}</div>`)+
   card('Eingabe',swc('data-e="pall"','Alle Tiere beim Füttern vorauswählen',PREFS.autoAll!==0&&PREFS.autoAll!==false)+swc('data-e="prskip"','Bei „Wie zuletzt füttern“ die Bewertung abfragen',!PREFS.repeatSkip,'Aus: Die Bewertungen der letzten Fütterung werden 1:1 übernommen'))+
+  card('Tierbilder',swc('data-e="pphoto"','Tierfotos statt Avatare verwenden',!!PREFS.photoAv,'Zeigt das Foto überall dort, wo sonst der Avatar mit Initiale steht (sofern ein Foto hinterlegt ist)'))+
   card('Header-Tier',`<p class="muted">Wähle ein oder mehrere Tiere für die Startseite. Beim Öffnen wechselt die App zufällig zwischen ihnen. Tippe ein Tier an, um die Vorschau zu sehen.</p><div class="lbl">Katze</div><div class="chips">${rg(0,CATD.length)}</div><div class="lbl" style="margin-top:12px">Hund</div><div class="chips">${rg(CATD.length,CATD.length+DOGD.length)}</div><div class="lbl" style="margin-top:12px">Ohne Tier</div><div class="chips">${chip('hs',ART.length-1,on(ART.length-1),'Keine')}</div>
   ${ART[pi]&&ART[pi][1]?`<div class="cpvs">${[['sleepy','Morgens'],['wake','Tagsüber'],['happy','Abends'],['sleep','Nachts']].map(([s,l])=>`<div class="cpvw"><div class="cpv" data-i="${pi}" data-s="${s}"></div>${l}</div>`).join('')}</div>`:''}`)+
   `<button class="btn ghost block" data-a="dreset">Design zurücksetzen</button>`}
@@ -125,7 +126,7 @@ A.togtheme=()=>{PREFS.theme=isDark()?'light':'dark';applyTheme();savePrefs()};
 A.dreset=()=>{['light','dark','fh','fb','fs','tc','preset'].forEach(k=>delete PREFS.ui[k]);applyTheme();savePrefs();toast('Design zurückgesetzt')};
 A.setlang=d=>{setLang(d.v)};
 A.hs=d=>{const i=+d.v;S.hpv=i;const s=new Set(PREFS.ui.hs||[PREFS.ui.cat||0]);if(s.has(i)){if(s.size>1)s.delete(i)}else s.add(i);PREFS.ui.hs=[...s];HI=null;savePrefs()};
-Object.assign(E,{font:t=>{PREFS.ui[t.dataset.k]=t.value;applyTheme();savePrefs()},prskip:t=>{PREFS.repeatSkip=t.checked?0:1;savePrefs()}});
+Object.assign(E,{font:t=>{PREFS.ui[t.dataset.k]=t.value;applyTheme();savePrefs()},pphoto:t=>{PREFS.photoAv=t.checked?1:0;savePrefs()},prskip:t=>{PREFS.repeatSkip=t.checked?0:1;savePrefs()}});
 
 /* ---------- Backup & Konto ---------- */
 function vBackup(){return card('Datensicherung',`<p class="muted">Lädt eine vollständige Sicherung der Datenbank (.db) herunter: Tiere, Einträge, Gesundheitsdaten, Einstellungen und Benutzerkonten. Hochgeladene Fotos liegen im Ordner data/uploads und werden separat gesichert.</p>${ME&&ME.is_admin?`<button class="btn primary block" data-a="dbdump">${ico('download',18)} Datenbank sichern</button>`:'<p class="muted">Die Datensicherung ist nur für Administratoren verfügbar.</p>'}`)+

@@ -38,7 +38,7 @@ function renderSheet(){const el=$('#sheet'),s=S.sh;
   const nb=el.querySelector('.body');if(nb)nb.scrollTop=st;shT=s.t}
 
 /* ---------- Menü ---------- */
-SH.menu=()=>['Eintragen',`<div class="tiles">${menuTiles().map(t=>`<button class="tile" data-a="m_${t.k}" ${t.k=='tlog'?'':''}><span class="ti">${ico(t.i,26)}</span><b>${t.t}</b><small>${t.d}</small></button>`).join('')}</div>`,''];
+SH.menu=()=>['Was möchtest du tun?',`<div class="tiles">${menuTiles().map(t=>`<button class="tile" data-a="m_${t.k}" ${t.k=='tlog'?'':''}><span class="ti">${ico(t.i,26)}</span><b>${t.t}</b><small>${t.d}</small></button>`).join('')}</div>`,''];
 
 /* ---------- Füttern ---------- */
 const rateBlock=(s,t='Wie hat’s geschmeckt?')=>Object.keys(s.sel).length?sect(t,Object.keys(s.sel).map(n=>`<div class="rate"><b>${esc(n)}</b><div class="rts">${RL.map(r=>`<button type="button" class="rt r${rc(r.score)} ${s.sel[n]==r.score?'on':''}" data-a="frate" data-c="${esc(n)}" data-v="${r.score}">${r.emoji?`<span class="em">${esc(r.emoji)}</span>`:''}<span>${esc(r.label)}</span></button>`).join('')}</div></div>`).join('')):'';
@@ -202,5 +202,5 @@ SH.tstart=s=>['Behandlung starten',petPick(s,'tcat')+sect('Behandlung',field('Be
 A.tcat=d=>{S.sh.cat=d.v};A.tsnow=()=>{S.sh.start=nowIso()};
 A.tssave=T(async()=>{const s=S.sh,c=catByName(s.cat),title=(s.title||'').trim();if(!c||!title)return;const iv=s.int=='custom'?parseInt(s.cint):(s.int?+s.int:null);if(s.int=='custom'&&!(iv>=1&&iv<=168)){toast('Intervall: 1 bis 168 Stunden');return}
   await API('POST','/api/health/treatments',{cat_id:c.id,title,start_timestamp:s.start||null,interval_hours:iv||null,notes:s.notes});S.sh=null;return()=>{S.tab='today';toast('Behandlung gestartet')}});
-SH.vdone=s=>['Impfung verabreicht',`<p class="muted"><b>${esc(s.name)}</b> – ${esc(s.cat)}</p>`+sect('Verabreicht am',`<input type="date" data-b="sh.g" value="${esc(s.g)}" max="${nowIso().slice(0,10)}">`)+sect('Gültigkeit',sw('sh.noexp','Kein Ablaufdatum',true)+(s.noexp?'':field('Gültig bis',`<input type="date" data-b="sh.u" value="${esc(s.u)}">`))),`<button class="btn primary block" data-a="vdsave">${ico('check',18)} Als verabreicht eintragen</button>`];
-A.vdsave=T(async()=>{const s=S.sh;await API('PUT','/api/health/vaccinations/'+s.id,{date_given:s.g||nowIso().slice(0,10),valid_until:s.noexp?null:(s.u||null),no_expiry:!!s.noexp});S.sh=null;return()=>toast('Impfung eingetragen')});
+SH.vdone=s=>['Impfung verabreicht',`<p class="muted"><b>${esc(s.name)}</b> – ${esc(s.cat)}</p>`+sect('Verabreicht am',`<input type="date" data-b="sh.g" value="${esc(s.g)}" max="${nowIso().slice(0,10)}">`)+sect('Wie lange hält die Impfung?',durPick('sh',s.g)),`<button class="btn primary block" data-a="vdsave">${ico('check',18)} Als verabreicht eintragen</button>`];
+A.vdsave=T(async()=>{const s=S.sh;await API('PUT','/api/health/vaccinations/'+s.id,{date_given:s.g||nowIso().slice(0,10),valid_until:durUntil(s.g,s.dur,s.u),no_expiry:s.dur=='none'});S.sh=null;return()=>toast('Impfung eingetragen')});
