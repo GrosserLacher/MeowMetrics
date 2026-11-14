@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>MeowMetrics</title>
+<style>
+:root{--bg:#fbf5ee;--card:#fffdfa;--ink:#2d2420;--mut:#85746a;--line:#eddfd2;--acc:#c8563a;--onacc:#fff;--accs:#fbe6dd;--bad:#c2453b;--bads:#fbe3df}
+@media (prefers-color-scheme:dark){:root{--bg:#1a1411;--card:#241c18;--ink:#f5ebe3;--mut:#b5a398;--line:#3b2e27;--acc:#f08a6b;--onacc:#2a120b;--accs:#4a2b20;--bad:#ff8f84;--bads:#4a2320}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:500 16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:grid;place-items:center;padding:max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom));min-height:100vh}
+main{width:100%;max-width:380px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.logo{width:44px;height:44px;border-radius:13px;background:var(--acc);color:var(--onacc);display:grid;place-items:center}
+h1{font:600 26px/1.15 Georgia,"Times New Roman",serif;margin:0}
+p{margin:0 0 14px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px}
+label{display:block;font-size:13px;font-weight:600;color:var(--mut);margin-bottom:6px}
+input{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit}
+input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs)}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:14px 18px;font:inherit;font-weight:600;background:var(--acc);color:var(--onacc);margin-top:14px}
+.btn.ghost{background:var(--accs);color:var(--acc);margin-top:10px}
+.btn:disabled{opacity:.5}
+.msg{border-radius:12px;padding:10px 12px;margin-top:12px;font-size:14px;background:var(--bads);color:var(--bad)}
+.msg.info{background:var(--accs);color:var(--ink)}
+.url{word-break:break-all;font-weight:600;color:var(--ink)}
+.fine{font-size:13px;margin:14px 0 0}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){.card{animation:in .25s ease both}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <span class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="16" rx="4.5" ry="3.5"/><circle cx="5.5" cy="11" r="1.8"/><circle cx="9.5" cy="6.5" r="1.8"/><circle cx="14.5" cy="6.5" r="1.8"/><circle cx="18.5" cy="11" r="1.8"/></svg></span>
+    <h1>MeowMetrics</h1>
+  </div>
+
+  <!-- Erster Start oder "Server ändern" -->
+  <section class="card" id="setup" hidden>
+    <p id="t-intro"></p>
+    <label for="url" id="t-label"></label>
+    <input id="url" type="url" inputmode="url" autocapitalize="none" autocomplete="url" spellcheck="false" placeholder="https://meowmetrics.example.org">
+    <div class="msg" id="err" hidden></div>
+    <button class="btn" id="connect"></button>
+    <button class="btn ghost" id="cancel" hidden></button>
+    <p class="fine" id="t-hint"></p>
+  </section>
+
+  <!-- Server nicht erreichbar (wird von Capacitor bei Ladefehlern angezeigt) -->
+  <section class="card" id="down" hidden>
+    <p class="url" id="down-url"></p>
+    <div class="msg" id="down-msg"></div>
+    <button class="btn" id="retry"></button>
+    <button class="btn ghost" id="change"></button>
+  </section>
+
+  <!-- Zurück aus der App: Wahl -->
+  <section class="card" id="menu" hidden>
+    <p class="url" id="menu-url"></p>
+    <button class="btn" id="resume"></button>
+    <button class="btn ghost" id="change2"></button>
+  </section>
+
+  <!-- Verbindungsprüfung -->
+  <section class="card" id="busy" hidden><p id="t-busy" style="margin:0"></p></section>
+</main>
+
+<script>
+(function(){
+  var KEY='mm_server', de=(navigator.language||'de').slice(0,2)!=='en';
+  var T=de?{
+    intro:'Mit welchem Server soll sich die App verbinden? Diese Adresse speicherst du nur einmal.',
+    label:'Server-Adresse',connect:'Verbinden',cancel:'Abbrechen',
+    hint:'Die Adresse muss mit https:// beginnen. Du meldest dich danach mit deinem Benutzernamen an.',
+    busy:'Verbindung wird geprüft …',
+    down:'Der Server antwortet nicht. Prüfe deine Internetverbindung und die Adresse.',
+    retry:'Erneut versuchen',change:'Server ändern',resume:'Zurück zur App',
+    bad:'Bitte eine gültige Adresse eingeben, z. B. https://meowmetrics.example.org',
+    http:'Aus Sicherheitsgründen sind nur Adressen mit https:// erlaubt.'
+  }:{
+    intro:'Which server should the app connect to? You only enter this address once.',
+    label:'Server address',connect:'Connect',cancel:'Cancel',
+    hint:'The address must start with https://. You then sign in with your username.',
+    busy:'Checking connection …',
+    down:'The server is not responding. Check your internet connection and the address.',
+    retry:'Try again',change:'Change server',resume:'Back to the app',
+    bad:'Please enter a valid address, e.g. https://meowmetrics.example.org',
+    http:'For security reasons only addresses starting with https:// are allowed.'
+  };
+  var $=function(i){return document.getElementById(i)};
+  var views=['setup','down','menu','busy'];
+  function show(v){views.forEach(function(x){$(x).hidden=x!==v})}
+  function get(){try{return localStorage.getItem(KEY)||''}catch(e){return''}}
+  function set(u){try{localStorage.setItem(KEY,u)}catch(e){}}
+  function norm(raw){
+    var s=(raw||'').trim();if(!s)return{e:T.bad};
+    if(/^http:\/\//i.test(s))return{e:T.http};
+    if(!/^https:\/\//i.test(s))s='https://'+s;
+    try{var u=new URL(s);if(!u.hostname||u.hostname.indexOf('.')<0&&u.hostname!=='localhost')return{e:T.bad};
+      return{u:u.origin+(u.pathname==='/'?'':u.pathname.replace(/\/$/,''))}}catch(e){return{e:T.bad}}
+  }
+  function go(u){location.href=u+'/'}
+  // Kein Vorab-Test per fetch: Die App öffnet den Server direkt. Schlägt das Laden fehl, zeigt Capacitor
+  // diese Seite erneut mit ?down=1 (errorPath in capacitor.config.json).
+  function start(){
+    var u=get();
+    if(!u){show('setup');$('cancel').hidden=true;return}
+    show('busy');go(u);
+  }
+  function showDown(){var u=get();$('down-url').textContent=u;show(u?'down':'setup')}
+  function toSetup(){
+    var u=get();$('url').value=u;$('err').hidden=true;$('cancel').hidden=!u;show('setup');
+  }
+  function apply(){
+    $('t-intro').textContent=T.intro;$('t-label').textContent=T.label;$('connect').textContent=T.connect;
+    $('cancel').textContent=T.cancel;$('t-hint').textContent=T.hint;$('t-busy').textContent=T.busy;
+    $('down-msg').textContent=T.down;$('retry').textContent=T.retry;
+    $('change').textContent=T.change;$('change2').textContent=T.change;$('resume').textContent=T.resume;
+  }
+  $('connect').onclick=function(){
+    var r=norm($('url').value);
+    if(r.e){$('err').textContent=r.e;$('err').hidden=false;return}
+    $('err').hidden=true;set(r.u);show('busy');go(r.u);
+  };
+  $('url').onkeydown=function(e){if(e.key==='Enter')$('connect').onclick()};
+  $('cancel').onclick=function(){var u=get();if(u)$('menu-url').textContent=u;show('menu')};
+  $('retry').onclick=function(){var u=get();if(u){show('busy');go(u)}};
+  $('change').onclick=toSetup;$('change2').onclick=toSetup;
+  $('resume').onclick=function(){go(get())};
+  apply();
+
+  // Kommt man mit "Zurück" aus der App hierher, nicht sofort weiterleiten, sondern die Wahl anbieten.
+  var nav=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
+  var back=nav.type==='back_forward'||window.__fromBack;
+  window.addEventListener('pageshow',function(e){if(e.persisted){var u=get();$('menu-url').textContent=u;show(u?'menu':'setup')}});
+  if(/[?&]down=1/.test(location.search))showDown();
+  else if(back&&get()){$('menu-url').textContent=get();show('menu')}else start();
+})();
+</script>
+</body>
+</html>
