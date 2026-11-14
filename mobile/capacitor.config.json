@@ -1,0 +1,12 @@
+{
+  "appId": "io.github.grosserlacher.meowmetrics",
+  "appName": "MeowMetrics",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*"]
+  }
+}
