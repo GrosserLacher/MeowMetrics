@@ -49,12 +49,11 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     <p class="fine" id="t-hint"></p>
   </section>
 
-  <!-- Server nicht erreichbar -->
+  <!-- Server nicht erreichbar (wird von Capacitor bei Ladefehlern angezeigt) -->
   <section class="card" id="down" hidden>
     <p class="url" id="down-url"></p>
     <div class="msg" id="down-msg"></div>
     <button class="btn" id="retry"></button>
-    <button class="btn ghost" id="open-anyway"></button>
     <button class="btn ghost" id="change"></button>
   </section>
 
@@ -78,7 +77,7 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     hint:'Die Adresse muss mit https:// beginnen. Du meldest dich danach mit deinem Benutzernamen an.',
     busy:'Verbindung wird geprüft …',
     down:'Der Server antwortet nicht. Prüfe deine Internetverbindung und die Adresse.',
-    retry:'Erneut versuchen',anyway:'Trotzdem öffnen',change:'Server ändern',resume:'Zurück zur App',
+    retry:'Erneut versuchen',change:'Server ändern',resume:'Zurück zur App',
     bad:'Bitte eine gültige Adresse eingeben, z. B. https://meowmetrics.example.org',
     http:'Aus Sicherheitsgründen sind nur Adressen mit https:// erlaubt.'
   }:{
@@ -87,7 +86,7 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     hint:'The address must start with https://. You then sign in with your username.',
     busy:'Checking connection …',
     down:'The server is not responding. Check your internet connection and the address.',
-    retry:'Try again',anyway:'Open anyway',change:'Change server',resume:'Back to the app',
+    retry:'Try again',change:'Change server',resume:'Back to the app',
     bad:'Please enter a valid address, e.g. https://meowmetrics.example.org',
     http:'For security reasons only addresses starting with https:// are allowed.'
   };
@@ -103,44 +102,32 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     try{var u=new URL(s);if(!u.hostname||u.hostname.indexOf('.')<0&&u.hostname!=='localhost')return{e:T.bad};
       return{u:u.origin+(u.pathname==='/'?'':u.pathname.replace(/\/$/,''))}}catch(e){return{e:T.bad}}
   }
-  // Erreichbarkeit prüfen; die Antwort selbst wird nicht gelesen (no-cors), es zählt nur, dass der Server antwortet.
-  function ping(u){
-    var c=new AbortController(),t=setTimeout(function(){c.abort()},7000);
-    return fetch(u+'/api/auth/status',{mode:'no-cors',cache:'no-store',signal:c.signal})
-      .then(function(){clearTimeout(t);return true},function(){clearTimeout(t);return false});
-  }
   function go(u){location.href=u+'/'}
+  // Kein Vorab-Test per fetch: Die App öffnet den Server direkt. Schlägt das Laden fehl, zeigt Capacitor
+  // diese Seite erneut mit ?down=1 (errorPath in capacitor.config.json).
   function start(){
     var u=get();
     if(!u){show('setup');$('cancel').hidden=true;return}
-    show('busy');
-    ping(u).then(function(ok){
-      if(ok)go(u);else{$('down-url').textContent=u;show('down')}
-    });
+    show('busy');go(u);
   }
+  function showDown(){var u=get();$('down-url').textContent=u;show(u?'down':'setup')}
   function toSetup(){
     var u=get();$('url').value=u;$('err').hidden=true;$('cancel').hidden=!u;show('setup');
   }
   function apply(){
     $('t-intro').textContent=T.intro;$('t-label').textContent=T.label;$('connect').textContent=T.connect;
     $('cancel').textContent=T.cancel;$('t-hint').textContent=T.hint;$('t-busy').textContent=T.busy;
-    $('down-msg').textContent=T.down;$('retry').textContent=T.retry;$('open-anyway').textContent=T.anyway;
+    $('down-msg').textContent=T.down;$('retry').textContent=T.retry;
     $('change').textContent=T.change;$('change2').textContent=T.change;$('resume').textContent=T.resume;
   }
   $('connect').onclick=function(){
     var r=norm($('url').value);
     if(r.e){$('err').textContent=r.e;$('err').hidden=false;return}
-    $('err').hidden=true;$('connect').disabled=true;show('busy');
-    ping(r.u).then(function(ok){
-      $('connect').disabled=false;
-      set(r.u);
-      if(ok)go(r.u);else{$('down-url').textContent=r.u;show('down')}
-    });
+    $('err').hidden=true;set(r.u);show('busy');go(r.u);
   };
   $('url').onkeydown=function(e){if(e.key==='Enter')$('connect').onclick()};
   $('cancel').onclick=function(){var u=get();if(u)$('menu-url').textContent=u;show('menu')};
-  $('retry').onclick=start;
-  $('open-anyway').onclick=function(){go(get())};   // z. B. Offline-Start der PWA aus dem Cache
+  $('retry').onclick=function(){var u=get();if(u){show('busy');go(u)}};
   $('change').onclick=toSetup;$('change2').onclick=toSetup;
   $('resume').onclick=function(){go(get())};
   apply();
@@ -149,7 +136,8 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
   var nav=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
   var back=nav.type==='back_forward'||window.__fromBack;
   window.addEventListener('pageshow',function(e){if(e.persisted){var u=get();$('menu-url').textContent=u;show(u?'menu':'setup')}});
-  if(back&&get()){$('menu-url').textContent=get();show('menu')}else start();
+  if(/[?&]down=1/.test(location.search))showDown();
+  else if(back&&get()){$('menu-url').textContent=get();show('menu')}else start();
 })();
 </script>
 </body>
