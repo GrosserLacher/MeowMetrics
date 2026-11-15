@@ -38,7 +38,15 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     <h1>MeowMetrics</h1>
   </div>
 
-  <!-- Erster Start oder "Server ändern" -->
+  <!-- Erster Start: Betriebsart wählen -->
+  <section class="card" id="mode" hidden>
+    <p id="t-mode"></p>
+    <button class="btn" id="m-server"></button>
+    <button class="btn ghost" id="m-local" disabled></button>
+    <p class="fine" id="t-local"></p>
+  </section>
+
+  <!-- Server-Adresse eingeben (erster Start oder "Server ändern") -->
   <section class="card" id="setup" hidden>
     <p id="t-intro"></p>
     <label for="url" id="t-label"></label>
@@ -72,6 +80,8 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
 (function(){
   var KEY='mm_server', de=(navigator.language||'de').slice(0,2)!=='en';
   var T=de?{
+    mode:'Wie möchtest du MeowMetrics nutzen?',server:'Mit Server verbinden',local:'Lokal auf diesem Gerät',
+    localHint:'Der lokale Modus ohne Server folgt in einem späteren Update. Bis dahin brauchst du einen MeowMetrics-Server.',
     intro:'Mit welchem Server soll sich die App verbinden? Diese Adresse speicherst du nur einmal.',
     label:'Server-Adresse',connect:'Verbinden',cancel:'Abbrechen',
     hint:'Die Adresse muss mit https:// beginnen. Du meldest dich danach mit deinem Benutzernamen an.',
@@ -81,6 +91,8 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     bad:'Bitte eine gültige Adresse eingeben, z. B. https://meowmetrics.example.org',
     http:'Aus Sicherheitsgründen sind nur Adressen mit https:// erlaubt.'
   }:{
+    mode:'How would you like to use MeowMetrics?',server:'Connect to a server',local:'Local on this device',
+    localHint:'The local mode without a server will follow in a later update. Until then you need a MeowMetrics server.',
     intro:'Which server should the app connect to? You only enter this address once.',
     label:'Server address',connect:'Connect',cancel:'Cancel',
     hint:'The address must start with https://. You then sign in with your username.',
@@ -91,7 +103,7 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     http:'For security reasons only addresses starting with https:// are allowed.'
   };
   var $=function(i){return document.getElementById(i)};
-  var views=['setup','down','menu','busy'];
+  var views=['mode','setup','down','menu','busy'];
   function show(v){views.forEach(function(x){$(x).hidden=x!==v})}
   function get(){try{return localStorage.getItem(KEY)||''}catch(e){return''}}
   function set(u){try{localStorage.setItem(KEY,u)}catch(e){}}
@@ -114,16 +126,16 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
   // diese Seite erneut mit ?down=1 (errorPath in capacitor.config.json).
   function start(){
     var u=get();
-    if(!u){show('setup');$('cancel').hidden=true;return}
+    if(!u){show('mode');return}
     goBusy(u);
   }
-  function showDown(){var u=get();$('down-msg').textContent=T.down;$('down-url').textContent=u;show(u?'down':'setup')}
+  function showDown(){var u=get();$('down-msg').textContent=T.down;$('down-url').textContent=u;show(u?'down':'mode')}
   function toSetup(){
-    var u=get();$('url').value=u;$('err').hidden=true;$('cancel').hidden=!u;show('setup');
+    var u=get();$('url').value=u;$('err').hidden=true;$('cancel').hidden=false;show('setup');
   }
   function apply(){
     $('t-intro').textContent=T.intro;$('t-label').textContent=T.label;$('connect').textContent=T.connect;
-    $('cancel').textContent=T.cancel;$('t-hint').textContent=T.hint;$('t-busy').textContent=T.busy;$('stop').textContent=T.cancel;
+    $('cancel').textContent=T.cancel;$('t-hint').textContent=T.hint;$('t-mode').textContent=T.mode;$('m-server').textContent=T.server;$('m-local').textContent=T.local;$('t-local').textContent=T.localHint;$('t-busy').textContent=T.busy;$('stop').textContent=T.cancel;
     $('down-msg').textContent=T.down;$('retry').textContent=T.retry;
     $('change').textContent=T.change;$('change2').textContent=T.change;$('resume').textContent=T.resume;
   }
@@ -133,7 +145,8 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
     $('err').hidden=true;set(r.u);goBusy(r.u);
   };
   $('url').onkeydown=function(e){if(e.key==='Enter')$('connect').onclick()};
-  $('cancel').onclick=function(){var u=get();if(u)$('menu-url').textContent=u;show('menu')};
+  $('cancel').onclick=function(){var u=get();if(u){$('menu-url').textContent=u;show('menu')}else show('mode')};
+  $('m-server').onclick=toSetup;
   $('stop').onclick=function(){clearTimeout(busyT);try{window.stop()}catch(e){}toSetup()};
   $('retry').onclick=function(){var u=get();if(u)goBusy(u)};
   $('change').onclick=toSetup;$('change2').onclick=toSetup;
@@ -143,7 +156,7 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
   // Kommt man mit "Zurück" aus der App hierher, nicht sofort weiterleiten, sondern die Wahl anbieten.
   var nav=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
   var back=nav.type==='back_forward'||window.__fromBack;
-  window.addEventListener('pageshow',function(e){if(e.persisted){var u=get();$('menu-url').textContent=u;show(u?'menu':'setup')}});
+  window.addEventListener('pageshow',function(e){if(e.persisted){var u=get();$('menu-url').textContent=u;show(u?'menu':'mode')}});
   if(/[?&]down=1/.test(location.search))showDown();
   else if(back&&get()){$('menu-url').textContent=get();show('menu')}else start();
 })();

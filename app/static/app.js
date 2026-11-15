@@ -3,6 +3,7 @@ const SUBTITLE={today:'',hist:'Verlauf',pets:'Tiere',more:'Mehr'};
 const histOn=()=>histKinds().length>0||ft('stats')||ft('report');
 const navTabs=()=>[['today','Heute','home'],histOn()?['hist','Verlauf','list']:null,'fab',['pets','Tiere','paw'],['more','Mehr','more']].filter(Boolean);
 const PWA=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const APPSHELL=/MeowMetricsApp/.test(navigator.userAgent);   // läuft in der Android-App: immer die PWA-Ansicht (untere Leiste)
 const CK=[['bg','Hintergrund'],['card','Karten'],['ink','Text'],['mut','Zweittext'],['acc','Akzent / Buttons'],['onacc','Text auf Akzent'],['line','Linien & Rahmen'],['hg1','Header-Verlauf Start'],['hg2','Header-Verlauf Ende'],['good','Bewertung gut'],['ok','Bewertung okay'],['bad','Bewertung schlecht / Warnung']],SOFT={acc:'accs',good:'goods',ok:'oks',bad:'bads'};
 const FHL=['Fraunces','Playfair Display','Lora','Georgia','Poppins','Inter','system-ui'],FBL=['Inter','DM Sans','Nunito','Poppins','system-ui'];
 const isDark=()=>{const r=document.documentElement;return r.dataset.theme?r.dataset.theme=='dark':matchMedia('(prefers-color-scheme:dark)').matches};
@@ -15,7 +16,7 @@ function applyTheme(){const r=document.documentElement,st=r.style,U=PREFS.ui;
   Object.entries(U[isDark()?'dark':'light']||{}).forEach(([k,v])=>{st.setProperty('--'+k,v);if(SOFT[k])st.setProperty('--'+SOFT[k],`color-mix(in srgb,${v} 16%,var(--card))`)});
   ['fh','fb'].forEach(k=>{if(U[k]){loadFont(U[k]);st.setProperty('--'+k,fam(U[k]))}else st.removeProperty('--'+k)});
   document.body.style.fontSize=(U.fs||15)+'px';
-  r.classList.toggle('pwa',U.view=='pwa'||(U.view!='web'&&PWA));
+  r.classList.toggle('pwa',APPSHELL||U.view=='pwa'||(U.view!='web'&&PWA));
   const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',navColor())}
 A.tab=d=>{S.tab=d.v;S.pet=null;S.np=null;S.more='';S.sh=null;window.scrollTo(0,0)};
 A.lang=()=>{const ks=Object.keys((window.I18N||{}).languages||{de:1});setLang(ks[(ks.indexOf(LANG)+1)%ks.length])};

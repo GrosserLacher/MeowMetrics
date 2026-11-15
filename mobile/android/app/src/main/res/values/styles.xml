@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Statusleiste und Navigationsleiste: Hintergrund wie die App, Symbole und Uhr gut lesbar -->
+        <item name="android:windowBackground">@color/mm_window_bg</item>
+        <item name="android:statusBarColor">@color/mm_window_bg</item>
+        <item name="android:navigationBarColor">@color/mm_window_bg</item>
+        <item name="android:windowLightStatusBar">@bool/mm_light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/mm_light_bars</item>
     </style>
 
 
