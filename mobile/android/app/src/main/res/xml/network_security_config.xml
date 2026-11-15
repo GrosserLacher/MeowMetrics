@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Vertrauen: Zertifizierungsstellen des Systems und vom Benutzer auf dem Gerät installierte (z. B. eigene CA für den Heimserver).
+  Klartext-Verkehr (http) bleibt verboten. Zertifikatsfehler werden nie übergangen.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
