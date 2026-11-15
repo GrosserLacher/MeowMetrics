@@ -7,7 +7,6 @@
   },
   "server": {
     "androidScheme": "https",
-    "allowNavigation": ["*"],
     "errorPath": "index.html?down=1"
   }
 }
