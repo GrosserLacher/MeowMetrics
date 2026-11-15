@@ -1,0 +1,99 @@
+name: Android APK
+
+# Tag v1.2.3  -> signierte Release-APK, wird an ein GitHub Release angehängt
+# Push / Pull Request auf mobile/** oder manuell -> Test-APK (debug) als Artefakt, kein Keystore nötig
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["mobile/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # nötig, um das Release anzulegen
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Version aus dem Tag berechnen
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            NAME="${GITHUB_REF_NAME#v}"
+            IFS='.' read -r MAJ MIN PAT <<< "${NAME%%-*}"
+            CODE=$(( ${MAJ:-0} * 1000000 + ${MIN:-0} * 1000 + ${PAT:-0} ))
+          else
+            NAME="0.0.0-dev"
+            CODE=1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Version $NAME (versionCode $CODE)"
+
+      - name: Web-Dateien in das Android-Projekt kopieren
+        run: npx cap sync android
+
+      - name: Test-APK bauen (ohne Tag)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug -PversionName="${{ steps.ver.outputs.name }}" -PversionCode="${{ steps.ver.outputs.code }}"
+
+      - name: Test-APK hochladen
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: meowmetrics-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+
+      - name: Keystore bereitstellen
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Release-APK bauen und signieren
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: mobile/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease -PversionName="${{ steps.ver.outputs.name }}" -PversionCode="${{ steps.ver.outputs.code }}"
+
+      - name: APK umbenennen und Signatur prüfen
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          cp "$APK" "meowmetrics-${{ steps.ver.outputs.name }}.apk"
+          "$ANDROID_HOME"/build-tools/$(ls "$ANDROID_HOME"/build-tools | sort -V | tail -n1)/apksigner verify --print-certs "meowmetrics-${{ steps.ver.outputs.name }}.apk"
+
+      - name: GitHub Release anlegen
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mobile/meowmetrics-${{ steps.ver.outputs.name }}.apk
+          generate_release_notes: true

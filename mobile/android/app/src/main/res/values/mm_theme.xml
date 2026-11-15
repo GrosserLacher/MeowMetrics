@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Farbe hinter der Statusleiste und der Navigationsleiste (entspricht dem App-Hintergrund) -->
+<resources>
+    <color name="mm_window_bg">#FBF5EE</color>
+    <bool name="mm_light_bars">true</bool>
+</resources>
