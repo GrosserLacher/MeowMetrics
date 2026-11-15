@@ -37,6 +37,14 @@
         </provider>
     </application>
 
+    <!-- Ab Android 11 sieht eine App fremde Apps nur, wenn sie sie hier nennt. Ohne diesen Eintrag findet Capacitor
+         keine Kamera-App und zeigt statt der Kamera nur die Dateiauswahl. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

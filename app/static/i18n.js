@@ -660,7 +660,9 @@ window.I18N = {
     'Das Teilen-Menü kann keine Empfängeradresse an die Mail-App übergeben (Einschränkung von Android und iOS). Kopiere die Adresse vorher – oder öffne die Mail-App direkt mit Empfänger und hänge das heruntergeladene PDF an.': 'The share menu cannot pass a recipient address to the mail app (Android and iOS limitation). Copy the address first – or open the mail app directly with the recipient and attach the downloaded PDF.',
     'Mail-App mit der Praxis als Empfänger oder PDF teilen.': 'Mail app with the clinic as recipient, or share the PDF.',
     'Gespeichert und gesperrt – zum Ändern „Bearbeiten“ wählen.': 'Saved and locked – choose “Edit” to make changes.',
-    'eingetragen': 'logged'
+    'eingetragen': 'logged',
+    'Server wechseln': 'Change server',
+    'Verbunden mit': 'Connected to'
   },
 
   /* Sätze mit wechselnden Teilen: [Muster (RegExp), Ersatz]  – $1, $2 … = gefundene Teile */
