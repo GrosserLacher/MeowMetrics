@@ -170,3 +170,18 @@ img.av{display:block;object-fit:cover;background:var(--cc,#d9c7b8)}img.av::befor
 .ini.ph{background-size:cover;background-position:center;color:transparent}.ini.ph::before,.ini.ph::after{display:none}
 
 .syncb{border:0;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;white-space:nowrap}.syncb.ok{background:var(--oks);color:var(--ok)}.syncb.bad{background:var(--bads);color:var(--bad)}
+
+/* Foto zuschneiden und Zoom in der Vollbildansicht */
+#crop{position:fixed;inset:0;z-index:80;background:#000;color:#fff;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+#crop .cbar{padding:12px 16px;font-weight:600;text-align:center}
+#crop .cstage{position:relative;flex:1;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+#crop .cimg{position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;pointer-events:none;-webkit-user-drag:none}
+#crop .crect{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.62);pointer-events:none}
+#crop .ch{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:auto;touch-action:none}
+#crop .ch::after{content:"";position:absolute;left:14px;top:14px;width:16px;height:16px;background:#fff;border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+#crop .ch.nw{left:0;top:0}#crop .ch.n{left:50%;top:0}#crop .ch.ne{left:100%;top:0}#crop .ch.e{left:100%;top:50%}
+#crop .ch.se{left:100%;top:100%}#crop .ch.s{left:50%;top:100%}#crop .ch.sw{left:0;top:100%}#crop .ch.w{left:0;top:50%}
+#crop .cbtns{display:flex;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:#111}
+#crop .cbtns .btn{flex:1;padding:12px 8px;font-size:14px}
+#lb img{touch-action:none;will-change:transform}
+

@@ -39,6 +39,7 @@ function render(){
 /* ---------- Zurück (Android-Taste, Browser-Zurück): erst im App-Zustand zurück, am Start verlassen ---------- */
 const atRoot=()=>!(S.lb||S.dlg||(typeof XO!='undefined'&&XO)||S.sh||S.np||S.pet!=null||S.more||S.tab!='today');
 function backStep(){
+  if(CROPCANCEL){CROPCANCEL();return true}
   if(S.lb){S.lb=null;return true}
   if(S.dlg){A.dno();return true}
   if(typeof XO!='undefined'&&XO){XO=null;return true}
@@ -64,11 +65,14 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t
 document.addEventListener('input',e=>{const t=e.target;if(t.dataset.b&&t.type!='checkbox'&&t.tagName!='SELECT')setPath(t.dataset.b,t.value)});
 document.addEventListener('change',e=>{const t=e.target,d=t.dataset;
   if((t.id=='ximg'||t.id=='xcam')&&S.sh){const s=S.sh,fl=[...t.files];t.value='';
-    if(s.t=='evomit'){s.files=fl.slice(0,1)}
-    else if(s.ty=='vomit'){s.pv.forEach(u=>URL.revokeObjectURL(u));s.files=fl.slice(0,1);s.pv=s.files.map(f=>URL.createObjectURL(f))}
-    else{const room=4-s.files.length;fl.slice(0,room).forEach(f=>{s.files.push(f);s.pv.push(URL.createObjectURL(f))});if(fl.length>room)toast('Maximal 4 Fotos pro Eintrag')}
-    render();return}
-  if(t.id=='phcam'||t.id=='phpick'){const f=t.files[0];t.value='';if(f&&S.pet!=null)uploadPetPhoto(S.pet,f);return}
+    (async()=>{const single=s.t=='evomit'||s.ty=='vomit',lim=single?1:Math.max(0,4-s.files.length),pick=fl.slice(0,lim),out=[];
+      for(let i=0;i<pick.length;i++){const f=await cropPhoto(pick[i],pick.length>1?(LANG=='en'?`Photo ${i+1} of ${pick.length}`:`Foto ${i+1} von ${pick.length}`):'');if(f)out.push(f)}
+      if(S.sh!==s||!out.length)return;
+      if(s.t=='evomit'){s.files=out.slice(0,1)}
+      else if(s.ty=='vomit'){s.pv.forEach(u=>URL.revokeObjectURL(u));s.files=out.slice(0,1);s.pv=s.files.map(f=>URL.createObjectURL(f))}
+      else{out.forEach(f=>{s.files.push(f);s.pv.push(URL.createObjectURL(f))});if(fl.length>lim)toast('Maximal 4 Fotos pro Eintrag')}
+      render()})();return}
+  if(t.id=='phcam'||t.id=='phpick'){const f=t.files[0],pid=S.pet;t.value='';if(f&&pid!=null)cropPhoto(f,'').then(b=>{if(b)uploadPetPhoto(pid,b)});return}
   if(d.b){setPath(d.b,t.type=='checkbox'?t.checked:t.value);if(d.ch&&A[d.ch])A[d.ch](t.value,t);if('r' in d||d.ch)render();return}
   if(d.e&&E[d.e]){E[d.e](t);render();return}
   if('hd' in d){HD=t.checked;PREFS.hd=HD?1:0;applyHide();savePrefs();render();return}
@@ -82,7 +86,7 @@ document.addEventListener('input',e=>{const t=e.target,d=t.dataset;
 A.zoom=(d,t)=>{const g=t.closest('.card,.panel')||document,l=[...g.querySelectorAll('[data-a=zoom]')].map(e=>e.dataset.src);S.lb={list:l,i:Math.max(0,l.indexOf(d.src))}};
 A.lbc=()=>{S.lb=null};A.lbp=()=>{const l=S.lb;l.i=(l.i-1+l.list.length)%l.list.length};A.lbnx=()=>{const l=S.lb;l.i=(l.i+1)%l.list.length};
 function renderLb(){const el=$('#lb'),l=S.lb;if(!l){el.className='';el.innerHTML='';return}el.className='on';const n=l.list.length;
-  el.innerHTML=`<div class="lbbg" data-a="lbc"></div><button class="lbx" data-a="lbc" aria-label="Schließen">${ico('x',24)}</button>${n>1?`<button class="lbn l" data-a="lbp" aria-label="Zurück">${ico('back',28)}</button><button class="lbn r" data-a="lbnx" aria-label="Weiter">${ico('chev',28)}</button><div class="lbc">${l.i+1} / ${n}</div>`:''}<img src="${esc(l.list[l.i])}" alt="Foto">`}
+  el.innerHTML=`<div class="lbbg" data-a="lbc"></div><button class="lbx" data-a="lbc" aria-label="Schließen">${ico('x',24)}</button>${n>1?`<button class="lbn l" data-a="lbp" aria-label="Zurück">${ico('back',28)}</button><button class="lbn r" data-a="lbnx" aria-label="Weiter">${ico('chev',28)}</button><div class="lbc">${l.i+1} / ${n}</div>`:''}<img src="${esc(l.list[l.i])}" alt="Foto">`;lbBind(el,l)}
 document.addEventListener('keydown',e=>{if(!S.lb)return;if(e.key=='ArrowLeft'){A.lbp();render()}else if(e.key=='ArrowRight'){A.lbnx();render()}},true);
 document.addEventListener('keydown',e=>{if(e.key=='Escape'){if(S.lb){S.lb=null;render();return}if(S.dlg)A.dno();else if(S.sh){A.shclose();render()}}});
 setInterval(()=>$$('[data-tick]').forEach(e=>{e.textContent=tickTxt(e.dataset.tick,+e.dataset.ts)}),30000);
