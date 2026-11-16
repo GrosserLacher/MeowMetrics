@@ -34,7 +34,30 @@ function render(){
   const canAdd=menuTiles().length>0&&CATS.length>=0;
   $('#nav').innerHTML=`<div class="navi">${tabs.map(t=>t=='fab'?(canAdd?`<button class="fab" data-a="addmenu" aria-label="Aktionen">${ico('plus',28)}<span>Aktionen</span></button>`:'<span class="fabgap"></span>'):`<button class="${S.tab==t[0]?'on':''}" data-a="tab" data-v="${t[0]}" aria-label="${t[1]}">${ico(t[2],22)}<span>${t[1]}</span></button>`).join('')}</div>`;
   $$('.cpv').forEach(e=>{const x=ART[+e.dataset.i];if(x&&x[1])e.style.backgroundImage=x[1](e.dataset.s)});
-  renderSheet();renderDlg();renderWizard();xoRender();renderLb()}
+  renderSheet();renderDlg();renderWizard();xoRender();renderLb();syncHistory()}
+
+/* ---------- Zurück (Android-Taste, Browser-Zurück): erst im App-Zustand zurück, am Start verlassen ---------- */
+const atRoot=()=>!(S.lb||S.dlg||(typeof XO!='undefined'&&XO)||S.sh||S.np||S.pet!=null||S.more||S.tab!='today');
+function backStep(){
+  if(S.lb){S.lb=null;return true}
+  if(S.dlg){A.dno();return true}
+  if(typeof XO!='undefined'&&XO){XO=null;return true}
+  if(S.sh){A.shclose();return true}
+  if(S.np){S.np=null;return true}
+  if(S.pet!=null){S.pet=null;S.em=null;return true}
+  if(S.more){S.more='';return true}
+  if(S.tab!='today'){S.tab='today';return true}
+  return false}
+/* Solange der Zustand nicht am Start ist, liegt genau ein zusätzlicher Verlaufseintrag auf dem Stapel. */
+let EXTRA=false,IGNPOP=false;
+function syncHistory(){
+  const root=atRoot();
+  if(!root&&!EXTRA){history.pushState({mm:1},'');EXTRA=true}
+  else if(root&&EXTRA){EXTRA=false;IGNPOP=true;history.back()}}
+window.addEventListener('popstate',()=>{
+  if(IGNPOP){IGNPOP=false;return}
+  EXTRA=false;
+  if(backStep())render()});
 
 /* ---------- Ereignisse ---------- */
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t||t.disabled)return;const f=A[t.dataset.a];if(!f)return;if(f(t.dataset,t)!==false)render()});
@@ -81,10 +104,10 @@ const detectLang=()=>{const n=(navigator.language||'de').slice(0,2).toLowerCase(
 /* ---------- Anmeldung und Start ---------- */
 function showLogin(setup){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
   el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">${setup?'Willkommen! Administrator anlegen':'Anmelden'}</h2><p class="muted">${setup?'Der erste Benutzer wird Administrator. Weitere Benutzer legst du später in den Einstellungen an.':'Dieses Gerät bleibt danach angemeldet.'}</p>
-  <input type="text" id="lu" placeholder="Benutzername" autocomplete="username"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}"><div id="le" class="warnbox" hidden></div><button class="btn primary block" id="lb" style="margin-top:12px">${setup?'Konto anlegen':'Anmelden'}</button></div>`;
+  <input type="text" id="lu" placeholder="Benutzername" autocomplete="username" enterkeyhint="next"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}" enterkeyhint="go"><div id="le" class="warnbox" hidden></div><button class="btn primary block" id="lb" style="margin-top:12px">${setup?'Konto anlegen':'Anmelden'}</button></div>`;
   const go=async()=>{const r=await fetch(setup?'/api/setup-admin':'/api/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('#lu').value,password:$('#lp').value})});
     if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}const x=$('#le');x.hidden=false;x.textContent=d;return}el.remove();await initApp()};
-  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').focus()}
+  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};$('#lu').focus()}
 function showOffline(){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
   el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">Keine Verbindung</h2><p class="muted">Beim ersten Start wird eine Verbindung zum Server benötigt. Danach funktioniert die App auch offline.</p><button class="btn primary block" onclick="location.reload()">Erneut versuchen</button></div>`}
 function registerSW(){if(SECURE&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{})}

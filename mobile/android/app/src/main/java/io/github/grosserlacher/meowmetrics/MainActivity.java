@@ -10,6 +10,7 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import android.widget.Toast;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
@@ -19,7 +20,8 @@ import com.getcapacitor.BridgeWebViewClient;
  *
  * Capacitor würde dafür allowNavigation brauchen und lädt dann jede HTML-Seite des Servers über einen eigenen
  * Java-Proxy (HttpURLConnection). Das ist fehleranfällig. Stattdessen entscheidet hier eine einfache Regel:
- *  - https-Links von der Start-Seite aus und innerhalb desselben Servers bleiben im WebView,
+ *  - https-Links von der Start-Seite aus, innerhalb desselben Servers und zurück zur Start-Seite der App
+ *    ("Server wechseln") bleiben im WebView,
  *  - alles andere (andere Hosts, tel:, mailto:, Karten-Links) übergibt die App an Android (Standard von Capacitor).
  *
  * Fehlerdiagnose: Ladefehler des Servers werden kurz als Hinweis eingeblendet (Test-APK zusätzlich Start und Ende des Ladens).
@@ -45,6 +47,21 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Zurück-Taste: erst im WebView zurück (die PWA legt für Dialoge, Detailseiten und Untermenüs Verlaufseinträge an),
+        // am Start verlässt die App den Vordergrund wie jede andere Android-App.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView web = getBridge() == null ? null : getBridge().getWebView();
+                if (web != null && web.canGoBack()) {
+                    web.goBack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
         getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -54,7 +71,8 @@ public class MainActivity extends BridgeActivity {
                     String currentHost = currentUrl == null ? null : Uri.parse(currentUrl).getHost();
                     boolean fromLauncher = getBridge().getHost().equalsIgnoreCase(currentHost);
                     boolean sameServer = currentHost != null && currentHost.equalsIgnoreCase(target.getHost());
-                    if (fromLauncher || sameServer) {
+                    boolean toLauncher = getBridge().getHost().equalsIgnoreCase(target.getHost());
+                    if (fromLauncher || sameServer || toLauncher) {
                         return false;   // im WebView laden
                     }
                 }

@@ -137,7 +137,7 @@ let USERS=[];
 async function loadUsers(){if(!ME||!ME.is_admin)return;try{USERS=await API('GET','/api/users')}catch(e){}render()}
 const userEdit=(u,me)=>`<div class="ue">${field('Benutzername',inp('ue.name'))}${field('Neues Passwort',`<input type="password" data-b="ue.pw" value="${esc(S.ue.pw||'')}" placeholder="leer lassen = unverändert (mind. 8 Zeichen)" autocomplete="new-password">`)}${sw('ue.admin','Administrator')}<p class="muted fine">Ein neues Passwort meldet alle Geräte dieses Benutzers ab.</p><div class="row nowrap" style="margin-top:8px"><button class="btn primary" data-a="usave">Speichern</button>${me?'':`<button class="btn ghost dngtxt" data-a="udel" data-id="${u.id}">${ico('trash',16)} Löschen</button>`}</div></div>`;
 function vAccount(){
-  let o=card('Konto',`<p>Angemeldet als <b>${esc(ME?ME.username:'')}</b>${ME&&ME.is_admin?' (Administrator)':''}</p><button class="btn ghost block" data-a="logout">${ico('logout',18)} Abmelden</button>`);
+  let o=card('Konto',`<p>Angemeldet als <b>${esc(ME?ME.username:'')}</b>${ME&&ME.is_admin?' (Administrator)':''}</p><button class="btn ghost block" data-a="logout">${ico('logout',18)} Abmelden</button>`+(APPSHELL?`<p class="muted fine">Verbunden mit ${esc(location.host)}</p><button class="btn ghost block" data-a="srvchange">${ico('repeat',18)} Server wechseln</button>`:''));
   const pwi=(p,ac)=>`<input type="password" data-b="${p}" value="${esc(getPath(p)||'')}" autocomplete="${ac}">`;
   o+=card('Passwort ändern',`${field('Aktuelles Passwort',pwi('pw.cur','current-password'))}${field('Neues Passwort (mind. 8 Zeichen)',pwi('pw.n1','new-password'))}${field('Neues Passwort wiederholen',pwi('pw.n2','new-password'))}<button class="btn primary block" data-a="pwsave">Passwort ändern</button><p class="muted fine">Alle anderen Geräte werden dabei abgemeldet.</p>`);
   if(ME&&ME.is_admin){
@@ -153,6 +153,7 @@ A.usave=async()=>{const u=USERS.find(x=>x.id==S.uedit),e=S.ue,b={};if(!u)return 
   if(!Object.keys(b).length){toast('Keine Änderung');return false}
   try{await API('PUT','/api/users/'+u.id,b);toast('Benutzer aktualisiert');S.uedit=null;await refreshMe();await loadUsers()}catch(x){}return false};
 A.udel=d=>{const u=USERS.find(x=>x.id==d.id)||{};ask('Benutzer löschen?',`„${u.username||''}“ wird samt Anmeldung entfernt. Bereits erfasste Einträge bleiben erhalten.`,async()=>{try{await API('DELETE','/api/users/'+d.id);S.uedit=null;toast('Benutzer gelöscht');await loadUsers()}catch(x){}});return false};
+A.srvchange=()=>{location.href='https://localhost/index.html?change=1';return false};
 A.logout=async()=>{try{await API('POST','/api/logout')}catch(e){}location.reload();return false};
 A.addUser=async()=>{const u=(S.nv.un||'').trim(),p=S.nv.up||'';if(!u||!p)return false;try{await API('POST','/api/users',{username:u,password:p});toast('Benutzer „'+u+'“ angelegt');S.nv.un='';S.nv.up='';await loadUsers()}catch(e){}render();return false};
 
