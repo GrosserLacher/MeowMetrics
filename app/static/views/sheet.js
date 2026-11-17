@@ -28,7 +28,7 @@ A.addmenu=()=>{const tl=menuTiles();if(!tl.length){toast('Keine Eintragsart akti
 A.m_feed=()=>{S.sh=feedInit()};A.m_meds=()=>{S.sh=medsInit()};A.m_inc=()=>{S.sh=incInit()};A.m_meas=()=>{S.sh=measInit()};
 A.m_pinfo=()=>{S.sh={t:'pinfo',cat:CATS[0].name,sec:'profile'}};
 A.m_tstart=()=>{S.sh={t:'tstart',cat:CATS.length==1?CATS[0].name:'',title:'',start:nowIso(),int:'4',cint:'',notes:''}};
-A.m_tlog=d=>{S.sh=tlogInit(d&&d.tid?+d.tid:null,d&&d.type)};
+A.m_tlog=d=>{S.sh=tlogInit(d&&d.tid?ID(d.tid):null,d&&d.type)};
 A.shclose=()=>{if(S.sh&&S.sh.pv)S.sh.pv.forEach(u=>URL.revokeObjectURL(u));S.sh=null};
 function renderSheet(){const el=$('#sheet'),s=S.sh;
   if(!s){el.className='';el.innerHTML='';document.body.classList.remove('lock');shT=null;return}
@@ -73,14 +73,14 @@ A.frate=d=>{S.sh.sel[d.c]=+d.v};
 A.fman=v=>{const s=S.sh,m=(CAT[s.kind]||[]).find(x=>x.id==v);s.food=m&&m.foods[0]?m.foods[0].id:''};
 A.ffood=()=>{};
 A.fnewman=T(async()=>{const s=S.sh,n=(s.nn||'').trim();if(!n)return;const r=await API('POST','/api/catalog/manufacturers',{name:n,kind:s.kind});return()=>{s.man=r.id;s.food='';s.nn=''}});
-A.fnewfood=T(async()=>{const s=S.sh,n=(s.nfn||'').trim();if(!n||!s.man)return;const r=await API('POST','/api/foods',{manufacturer_id:+s.man,name:n});return()=>{s.food=r.id;s.nfn=''}});
+A.fnewfood=T(async()=>{const s=S.sh,n=(s.nfn||'').trim();if(!n||!s.man)return;const r=await API('POST','/api/foods',{manufacturer_id:ID(s.man),name:n});return()=>{s.food=r.id;s.nfn=''}});
 A.fmed=d=>{const s=S.sh;if(d.v in s.ms)delete s.ms[d.v];else{const m=MEDS.find(x=>x.id==d.v);s.ms[d.v]=m?m.dose:''}};
 A.nmedtog=()=>{S.sh.nmed=!S.sh.nmed};
 A.newmed=T(async()=>{const s=S.sh,n=(s.nmn||'').trim();if(!n)return;const r=await API('POST','/api/meds',{name:n,dose:s.nmd||'',unit:s.nmu||''});return()=>{if(s.t=='feed')s.ms[r.id]=s.nmd||'';else{s.med=r.id;s.dose=s.nmd||''}s.nmed=false;s.nmn='';s.nmd='';s.nmu=''}});
 const feedPend=(kind,mid,fid,cats,note,ts)=>{const m=(CAT[kind]||[]).find(x=>x.id==mid),f=m&&m.foods.find(x=>x.id==fid);return{t:'feed',kind,mid,fid,man:m?m.name:'',food:f?f.name:'',cats:{...cats},note,ts}};
 A.fsave=T(async()=>{const s=S.sh,names=Object.keys(s.sel);if(!names.length||!s.food)return;const ts=s.ts||nowIso();
-  const body={cat_ratings:s.sel,manufacturer_id:+s.man,food_id:+s.food,notes:s.note,timestamp:ts,kind:s.kind};
-  if(s.edit)await API('PUT','/api/feedings/batch/'+encodeURIComponent(s.edit),body);else await mut('POST','/api/feedings',body,null,feedPend(s.kind,+s.man,+s.food,s.sel,s.note,ts));
+  const body={cat_ratings:s.sel,manufacturer_id:ID(s.man),food_id:ID(s.food),notes:s.note,timestamp:ts,kind:s.kind};
+  if(s.edit)await API('PUT','/api/feedings/batch/'+encodeURIComponent(s.edit),body);else await mut('POST','/api/feedings',body,null,feedPend(s.kind,ID(s.man),ID(s.food),s.sel,s.note,ts));
   if(!s.edit&&s.dm&&ft('meds'))for(const [id,dose] of Object.entries(s.ms)){const mm=MEDS.find(x=>x.id==id),ds=doseStr(mm,dose);await mut('POST','/api/med-logs',{cat_names:names,med_id:+id,dose:ds,with_food:true,timestamp:ts,notes:''},null,{t:'med',med:mm?mm.name:'',dose:ds,wf:true,cats:names,note:'',ts})}
   const n=Object.keys(s.ms).length,all=Object.values(s.sel).every(r=>r==NR());S.sh=null;
   return()=>toast(s.edit?'Fütterung aktualisiert':okMsg(s.dm&&n?'Fütterung mit Präparat gespeichert':all?'Alle haben’s geliebt':'Fütterung gespeichert'))});
@@ -140,7 +140,7 @@ SH.meas=s=>{const f=HF.fields.find(x=>x.id==s.f);
    `<button class="btn primary block" data-a="measave" ${s.cat&&s.f?'':'disabled'}>${ico('check',18)} Wert speichern</button>`]};
 A.mecat=d=>{S.sh.cat=d.v};
 A.measave=T(async()=>{const s=S.sh,v=String(s.val).replace(',','.').trim(),c=catByName(s.cat);if(v===''||isNaN(+v)){toast('Bitte einen Wert eingeben');return}
-  const ts=s.ts||nowIso(),fl=HF.fields.find(x=>x.id==s.f);await mut('POST','/api/health/values',{cat_id:c.id,field_id:+s.f,value:+v,ts,note:s.note||''},null,{t:'val',cat_id:c.id,field_id:+s.f,value:+v,ts,note:s.note||'',label:fl?fl.name:''});S.sh=null;return()=>toast(okMsg('Wert gespeichert'))});
+  const ts=s.ts||nowIso(),fl=HF.fields.find(x=>x.id==s.f);await mut('POST','/api/health/values',{cat_id:c.id,field_id:ID(s.f),value:+v,ts,note:s.note||''},null,{t:'val',cat_id:c.id,field_id:ID(s.f),value:+v,ts,note:s.note||'',label:fl?fl.name:''});S.sh=null;return()=>toast(okMsg('Wert gespeichert'))});
 
 /* ---------- Behandlungs-Log ---------- */
 SH.tlog=s=>{const a=activeTR(),lt=LOGT.find(x=>x[0]==s.type);
@@ -150,7 +150,7 @@ SH.tlog=s=>{const a=activeTR(),lt=LOGT.find(x=>x[0]==s.type);
    sect('Beschreibung & Zeit',`${inp('sh.comment',{ph:lt?lt[2]:''})}<div style="height:8px"></div><input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}">`),
    `<button class="btn primary block" data-a="tlsave">${ico('check',18)} Eintrag speichern</button>`]};
 A.tltype=d=>{S.sh.type=d.v};
-A.tlsave=T(async()=>{const s=S.sh;const ts=s.ts||nowIso();await mut('POST','/api/health/treatments/'+s.tid+'/logs',{log_type:s.type,value_comment:s.comment,timestamp:ts},null,{t:'tlog',tid:+s.tid,type:s.type,comment:s.comment,ts});S.sh=null;return()=>toast(okMsg('Eintrag gespeichert'))});
+A.tlsave=T(async()=>{const s=S.sh;const ts=s.ts||nowIso();await mut('POST','/api/health/treatments/'+s.tid+'/logs',{log_type:s.type,value_comment:s.comment,timestamp:ts},null,{t:'tlog',tid:ID(s.tid),type:s.type,comment:s.comment,ts});S.sh=null;return()=>toast(okMsg('Eintrag gespeichert'))});
 
 /* ---------- Bearbeiten (Verlauf) ---------- */
 SH.emed=s=>['Präparat bearbeiten',`<p class="muted"><b>${esc(s.med)}</b> – ${esc(s.cats.join(', '))}</p>`+sect('Dosis',inp('sh.dose',{ph:'z. B. 1 Tablette'})+sw('sh.wf','Zusammen mit der Fütterung gegeben'))+sect('Zeitpunkt & Anmerkung',`<input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}"><div style="height:8px"></div>${inp('sh.note',{ph:'Anmerkung (optional)'})}`),`<button class="btn primary block" data-a="emsave">Änderungen speichern</button>`];

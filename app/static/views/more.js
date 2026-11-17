@@ -42,7 +42,7 @@ function vCatalog(){const ks=catKinds();if(!ks.some(x=>x[0]==S.ck))S.ck=ks[0]?ks
   return o}
 A.ck=d=>{S.ck=d.v};A.coll=d=>{S.co[d.id]=!S.co[d.id]};
 A.addman=T(async()=>{const n=(S.nv.man||'').trim();if(!n)return;await API('POST','/api/catalog/manufacturers',{name:n,kind:S.ck});S.nv.man='';return()=>toast('Hersteller angelegt')});
-A.addfood=T(async d=>{const n=(S.nv['f'+d.id]||'').trim();if(!n)return;await API('POST','/api/foods',{manufacturer_id:+d.id,name:n});S.nv['f'+d.id]=''});
+A.addfood=T(async d=>{const n=(S.nv['f'+d.id]||'').trim();if(!n)return;await API('POST','/api/foods',{manufacturer_id:ID(d.id),name:n});S.nv['f'+d.id]=''});
 A.delman=d=>{const m=CAT[S.ck].find(x=>x.id==d.id);ask('Hersteller löschen?',`„${m?m.name:''}“ und alle ${m?m.foods.length:0} zugehörigen Sorten werden aus der Auswahl gelöscht.`,T(async()=>{await API('DELETE','/api/manufacturers/'+d.id)}));return false};
 A.delfood=d=>{ask('Sorte löschen?',`„${d.n}“ wird aus der Auswahl gelöscht.`,T(async()=>{await API('DELETE','/api/foods/'+d.id)}));return false};
 A.addmed=T(async()=>{const n=(S.nv.mn||'').trim();if(!n)return;await API('POST','/api/meds',{name:n,dose:S.nv.md||'',unit:S.nv.mu||''});S.nv.mn='';S.nv.md='';S.nv.mu='';return()=>toast('Präparat angelegt')});
@@ -56,7 +56,7 @@ A.addrt=T(async()=>{const n=NR()+1;if(n>7){toast('Maximal 7 Stufen');return}RL=[
 A.delrt=T(async()=>{const n=NR();if(B0.some(b=>Object.values(b.cats).includes(n))){toast('Diese Stufe wird noch verwendet');return}RL=RL.filter(x=>x.score!=n);await syncR()});
 Object.assign(E,{
   manr:T(async t=>{const m=CAT[S.ck].find(x=>x.id==t.dataset.i),v=t.value.trim();if(!m||!v||v==m.name)return;await API('PUT','/api/manufacturers/'+m.id,{name:v})}),
-  foodr:T(async t=>{await API('PUT','/api/foods/'+t.dataset.i,{manufacturer_id:+t.dataset.m,name:t.value.trim()})}),
+  foodr:T(async t=>{await API('PUT','/api/foods/'+t.dataset.i,{manufacturer_id:ID(t.dataset.m),name:t.value.trim()})}),
   medn:T(async t=>{const m=MEDS.find(x=>x.id==t.dataset.i),v=t.value.trim();if(!m||!v||v==m.name)return;await API('PUT','/api/meds/'+m.id,{name:v,dose:m.dose,unit:m.unit})}),
   medd:T(async t=>{const m=MEDS.find(x=>x.id==t.dataset.i);if(!m||t.value.trim()==m.dose)return;await API('PUT','/api/meds/'+m.id,{name:m.name,dose:t.value.trim(),unit:m.unit})}),
   medu:T(async t=>{const m=MEDS.find(x=>x.id==t.dataset.i);if(!m||t.value.trim()==m.unit)return;await API('PUT','/api/meds/'+m.id,{name:m.name,dose:m.dose,unit:t.value.trim()})}),
@@ -132,7 +132,7 @@ Object.assign(E,{font:t=>{PREFS.ui[t.dataset.k]=t.value;applyTheme();savePrefs()
 /* ---------- Backup & Konto ---------- */
 function vBackup(){return card('Datensicherung',`<p class="muted">Lädt eine vollständige Sicherung der Datenbank (.db) herunter: Tiere, Einträge, Gesundheitsdaten, Einstellungen und Benutzerkonten. Hochgeladene Fotos liegen im Ordner data/uploads und werden separat gesichert.</p>${ME&&ME.is_admin?`<button class="btn primary block" data-a="dbdump">${ico('download',18)} Datenbank sichern</button>`:'<p class="muted">Die Datensicherung ist nur für Administratoren verfügbar.</p>'}`)+
   card('Export',`<p class="muted">Alle Fütterungen als CSV (Semikolon-getrennt, direkt in Excel nutzbar).</p><button class="btn ghost block" data-a="expCsv">${ico('download',18)} CSV exportieren</button>`)}
-A.dbdump=()=>{location.href='/api/export/db';return false};A.expCsv=()=>{location.href='/api/export/csv?lang='+LANG;return false};
+A.dbdump=()=>{location.href=BACKEND.url('/api/export/db');return false};A.expCsv=()=>{location.href=BACKEND.url('/api/export/csv?lang='+LANG);return false};
 let USERS=[];
 async function loadUsers(){if(!ME||!ME.is_admin)return;try{USERS=await API('GET','/api/users')}catch(e){}render()}
 const userEdit=(u,me)=>`<div class="ue">${field('Benutzername',inp('ue.name'))}${field('Neues Passwort',`<input type="password" data-b="ue.pw" value="${esc(S.ue.pw||'')}" placeholder="leer lassen = unverändert (mind. 8 Zeichen)" autocomplete="new-password">`)}${sw('ue.admin','Administrator')}<p class="muted fine">Ein neues Passwort meldet alle Geräte dieses Benutzers ab.</p><div class="row nowrap" style="margin-top:8px"><button class="btn primary" data-a="usave">Speichern</button>${me?'':`<button class="btn ghost dngtxt" data-a="udel" data-id="${u.id}">${ico('trash',16)} Löschen</button>`}</div></div>`;
@@ -147,7 +147,7 @@ function vAccount(){
 A.pwsave=async()=>{const p=S.pw;if(!p.cur||!p.n1)return false;if(p.n1.length<8){toast('Neues Passwort mind. 8 Zeichen');return false}if(p.n1!=p.n2){toast('Die neuen Passwörter stimmen nicht überein');return false}
   try{await API('PUT','/api/me/password',{current:p.cur,new:p.n1});toast('Passwort geändert');S.pw={cur:'',n1:'',n2:''}}catch(e){}render();return false};
 A.uedit=d=>{if(S.uedit==d.id){S.uedit=null;return}const u=USERS.find(x=>x.id==d.id);S.uedit=u.id;S.ue={name:u.username,pw:'',admin:u.is_admin}};
-async function refreshMe(){try{const st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());if(st.user)ME=st.user}catch(e){}}
+async function refreshMe(){try{const st=await BACKEND.raw('GET','/api/auth/status').then(r=>r.json());if(st.user)ME=st.user}catch(e){}}
 A.usave=async()=>{const u=USERS.find(x=>x.id==S.uedit),e=S.ue,b={};if(!u)return false;
   if(e.name.trim()&&e.name.trim()!=u.username)b.username=e.name.trim();if(e.pw)b.password=e.pw;if(!!e.admin!=u.is_admin)b.is_admin=!!e.admin;
   if(!Object.keys(b).length){toast('Keine Änderung');return false}
