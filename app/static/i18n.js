@@ -662,6 +662,9 @@ window.I18N = {
     'Gespeichert und gesperrt – zum Ändern „Bearbeiten“ wählen.': 'Saved and locked – choose “Edit” to make changes.',
     'eingetragen': 'logged',
     'Server wechseln': 'Change server',
+    'Foto zuschneiden': 'Crop photo',
+    'Ohne Zuschneiden': 'Use as is',
+    'Übernehmen': 'Apply',
     'Verbunden mit': 'Connected to'
   },
 
