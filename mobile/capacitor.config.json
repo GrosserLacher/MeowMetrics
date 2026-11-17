@@ -4,8 +4,7 @@
   "webDir": "www",
   "android": {
     "allowMixedContent": false,
-    "appendUserAgent": "MeowMetricsApp",
-    "adjustMarginsForEdgeToEdge": "auto"
+    "appendUserAgent": "MeowMetricsApp"
   },
   "server": {
     "androidScheme": "https",

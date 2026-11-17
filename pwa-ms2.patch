@@ -1,0 +1,340 @@
+diff --git a/app/static/api.js b/app/static/api.js
+index 408db13..a8aefa6 100644
+--- a/app/static/api.js
++++ b/app/static/api.js
+@@ -3,10 +3,25 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let toastT;
+ function toast(m){const t=$('#toast');t.innerHTML=`<span>${esc(m)}</span><button class="tx" data-a="tclose" aria-label="Schließen">${ico('x',14)}</button>`;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),4500)}
+-async function API(m,u,b,f,h){const o={method:m,credentials:'same-origin',headers:{...(h||{})}};
+-  if(f)o.body=f;else if(b!==undefined){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}
+-  let r;try{r=await fetch(u,o)}catch(e){const er=new Error('offline');er.offline=true;if(typeof setOffline=='function')setOffline(true);throw er}
+-  if(typeof setOffline=='function')setOffline(false);
+-  if(r.status==401&&u!='/api/login'){showLogin(false);throw new Error('401')}
+-  if(!r.ok){let d='Fehler '+r.status;try{const j=await r.json();d=typeof j.detail=='string'?j.detail:d}catch(e){}toast(d);throw new Error(d)}
+-  return r.json()}
++/* ---------- Datenzugriff ----------
++   Die Oberfläche spricht nur über BACKEND mit den Daten (Server). Aktuell gibt es genau eine Anbindung: REST.
++   Für den lokalen Modus der Android-App kommt später eine zweite Anbindung mit denselben Methoden.
++     BACKEND.url(pfad)                                   Adresse für Fotos, Downloads und Berichte
++     BACKEND.raw(methode, pfad, {json, form, headers})   Response (Anmeldung, Dateien)
++     BACKEND.request(methode, pfad, json, form, headers) JSON-Antwort; wirft bei Fehlern (ohne Verbindung: err.offline)
++   MU(pfad) macht aus einem Pfad wie /uploads/x.jpg eine Adresse, die die Anbindung auflösen kann. */
++const BACKEND={
++  kind:'server',base:'',
++  url(p){return /^(https?:|blob:|data:)/.test(p)?p:this.base+p},
++  raw(method,path,o){o=o||{};const init={method,credentials:'same-origin',headers:{...(o.headers||{})}};
++    if(o.form)init.body=o.form;else if(o.json!==undefined){init.headers['Content-Type']='application/json';init.body=JSON.stringify(o.json)}
++    return fetch(this.url(path),init)},
++  async request(m,u,b,f,h){let r;
++    try{r=await this.raw(m,u,{json:b,form:f,headers:h})}catch(e){const er=new Error('offline');er.offline=true;if(typeof setOffline=='function')setOffline(true);throw er}
++    if(typeof setOffline=='function')setOffline(false);
++    if(r.status==401&&u!='/api/login'){showLogin(false);throw new Error('401')}
++    if(!r.ok){let d='Fehler '+r.status;try{const j=await r.json();d=typeof j.detail=='string'?j.detail:d}catch(e){}toast(d);throw new Error(d)}
++    return r.json()}
++};
++async function API(m,u,b,f,h){return BACKEND.request(m,u,b,f,h)}
++const MU=p=>p?BACKEND.url(p):p;
+diff --git a/app/static/app.js b/app/static/app.js
+index 882b538..992176d 100644
+--- a/app/static/app.js
++++ b/app/static/app.js
+@@ -17,7 +17,8 @@ function applyTheme(){const r=document.documentElement,st=r.style,U=PREFS.ui;
+   ['fh','fb'].forEach(k=>{if(U[k]){loadFont(U[k]);st.setProperty('--'+k,fam(U[k]))}else st.removeProperty('--'+k)});
+   document.body.style.fontSize=(U.fs||15)+'px';
+   r.classList.toggle('pwa',APPSHELL||U.view=='pwa'||(U.view!='web'&&PWA));
+-  const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',navColor())}
++  const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',navColor());
++  if(window.MMNative&&MMNative.setBars)try{MMNative.setBars(isDark())}catch(e){}}
+ A.tab=d=>{S.tab=d.v;S.pet=null;S.np=null;S.more='';S.sh=null;window.scrollTo(0,0)};
+ A.lang=()=>{const ks=Object.keys((window.I18N||{}).languages||{de:1});setLang(ks[(ks.indexOf(LANG)+1)%ks.length])};
+ 
+@@ -109,7 +110,7 @@ const detectLang=()=>{const n=(navigator.language||'de').slice(0,2).toLowerCase(
+ function showLogin(setup){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
+   el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">${setup?'Willkommen! Administrator anlegen':'Anmelden'}</h2><p class="muted">${setup?'Der erste Benutzer wird Administrator. Weitere Benutzer legst du später in den Einstellungen an.':'Dieses Gerät bleibt danach angemeldet.'}</p>
+   <input type="text" id="lu" placeholder="Benutzername" autocomplete="username" enterkeyhint="next"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}" enterkeyhint="go"><div id="le" class="warnbox" hidden></div><button class="btn primary block" id="lb" style="margin-top:12px">${setup?'Konto anlegen':'Anmelden'}</button></div>`;
+-  const go=async()=>{const r=await fetch(setup?'/api/setup-admin':'/api/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('#lu').value,password:$('#lp').value})});
++  const go=async()=>{const r=await BACKEND.raw('POST',setup?'/api/setup-admin':'/api/login',{json:{username:$('#lu').value,password:$('#lp').value}});
+     if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}const x=$('#le');x.hidden=false;x.textContent=d;return}el.remove();await initApp()};
+   $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};$('#lu').focus()}
+ function showOffline(){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
+@@ -118,7 +119,7 @@ function registerSW(){if(SECURE&&'serviceWorker' in navigator)navigator.serviceW
+ async function initApp(){
+   let st,p;
+   try{
+-    st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());
++    st=await BACKEND.raw('GET','/api/auth/status').then(r=>r.json());
+     if(st.needs_setup){showLogin(true);return}
+     ME=st.user;if(!ME){showLogin(false);return}
+     p=await API('GET','/api/prefs');
+diff --git a/app/static/state.js b/app/static/state.js
+index 3322b0f..b0656ba 100644
+--- a/app/static/state.js
++++ b/app/static/state.js
+@@ -8,6 +8,8 @@ const S={tab:'today',hist:'list',more:'',pet:null,pt:'profile',sh:null,dlg:null,
+   vac:{t:'',nt:'',g:'',u:'',dur:'1y',plan:false,pd:''},nfld:{n:'',u:''},tf:null,tx:{},em:null,np:null,ck:'food',co:{},nv:{},pw:{cur:'',n1:'',n2:''},rp:null};
+ 
+ /* ---------- Hilfsfunktionen ---------- */
++/* IDs sind für die Oberfläche undurchsichtig: Zahlen bleiben Zahlen, alles andere (z. B. UUIDs) bleibt Text */
++const ID=v=>/^\d+$/.test(String(v))?+v:v;
+ const ft=k=>FT[k]!==false;
+ const feedOn=()=>ft('food')||ft('snack')||ft('drink')||ft('meds'),incOn=()=>ft('vomit')||ft('stool')||ft('finding'),healthOn=()=>ft('medical')||ft('vaccination')||ft('values')||ft('treatment');
+ const NR=()=>RL.length||3,rc=v=>v>NR()*2/3?3:v>NR()/3?2:1;
+@@ -62,14 +64,14 @@ function applyHide(){
+ async function load(){
+   let d;try{d=await API('GET','/api/bootstrap');if(HAVE_IDB)IDB.set('bootstrap',d).catch(()=>{})}catch(e){if(!e.offline||!HAVE_IDB)throw e;d=await IDB.get('bootstrap');if(!d)throw e}
+   PRF={};(d.profiles||[]).forEach(p=>{PRF[p.id]=p});
+-  CATS=d.animals.map((a,i)=>({id:a.id,name:a.name,sp:a.species||'cat',i,photo:(PRF[a.id]||{}).photo||'',life:(PRF[a.id]||{}).lifestyle||''}));
++  CATS=d.animals.map((a,i)=>({id:a.id,name:a.name,sp:a.species||'cat',i,photo:MU((PRF[a.id]||{}).photo||''),life:(PRF[a.id]||{}).lifestyle||''}));
+   VTYPES=d.vaccine_types||[];
+   const mp=l=>l.map(m=>({id:m.id,name:m.name,foods:m.foods}));
+   CAT={food:mp(d.food),snack:mp(d.snack),drink:mp(d.drink)};
+   const gm={};
+   d.feedings.forEach(f=>{const k=f.batch_id||'s'+f.id;(gm[k]=gm[k]||{id:f.batch_id||f.id,ts:new Date(f.timestamp).getTime(),kind:f.kind||'food',mid:f.manufacturer_id,fid:f.food_id,man:f.manufacturer_name,food:f.food_name,cats:{},note:f.notes||'',by:f.created_by_name||''}).cats[f.cat_name]=f.rating});
+   B0=Object.values(gm);
+-  V0=d.vomits.map(x=>({id:x.id,ts:new Date(x.timestamp).getTime(),cat:x.cat_name,type:x.vomit_type||'food',note:x.notes||'',by:x.created_by_name||'',img:x.image_path}));
++  V0=d.vomits.map(x=>({id:x.id,ts:new Date(x.timestamp).getTime(),cat:x.cat_name,type:x.vomit_type||'food',note:x.notes||'',by:x.created_by_name||'',img:MU(x.image_path)}));
+   RL=[...d.rating_levels].sort((a,b)=>b.score-a.score);
+   VT=d.vomit_types.map(x=>({key:x.key,label:x.label,emoji:x.emoji||'',relevant:!!x.relevant,hidden:!!x.hidden}));
+   DD=(d.default_drink||{}).name||'Wasser';
+@@ -77,7 +79,7 @@ async function load(){
+   const g2={};
+   d.med_logs.forEach(x=>{(g2[x.batch_id]=g2[x.batch_id]||{id:x.batch_id,ts:new Date(x.timestamp).getTime(),med:x.med_name,dose:x.dose||'',wf:!!x.with_food,note:x.notes||'',by:x.created_by_name||'',cats:[]}).cats.push(x.cat_name)});
+   MG0=Object.values(g2);
+-  FD0=d.findings.map(x=>({id:x.id,cat:x.cat_name,kind:x.kind,bristol:x.bristol,flags:x.details||[],loc:x.location||'',ts:new Date(x.timestamp).getTime(),note:x.notes||'',by:x.created_by_name||'',imgs:x.images||[]}));
++  FD0=d.findings.map(x=>({id:x.id,cat:x.cat_name,kind:x.kind,bristol:x.bristol,flags:x.details||[],loc:x.location||'',ts:new Date(x.timestamp).getTime(),note:x.notes||'',by:x.created_by_name||'',imgs:(x.images||[]).map(MU)}));
+   const fx=d.features||{};FT=fx.features||{};FT_DONE=!!fx.setup_done;MULTI=(fx.users||1)>1;
+   HF=d.health_overview||{fields:[],birthdays:{}};HV=d.health_values||[];VAC=d.vaccinations||[];TR=d.treatments||[];VETS=d.vets||[];
+   await applyPending();
+diff --git a/app/static/styles.css b/app/static/styles.css
+index e7bb43c..e275738 100644
+--- a/app/static/styles.css
++++ b/app/static/styles.css
+@@ -1,17 +1,17 @@
+ /* styles.css – Design: warme Palette, Fraunces + Inter, ruhige Hierarchie */
+-:root{--bg:#fbf5ee;--card:#fffdfa;--ink:#2d2420;--mut:#85746a;--line:#eddfd2;--acc:#c8563a;--onacc:#fff;--accs:#fbe6dd;--good:#3f8f5f;--goods:#e1f1e3;--ok:#5a7fb8;--oks:#e5edf8;--bad:#c2453b;--bads:#fbe3df;--hg1:#f9dcc7;--hg2:#f6cfd3;--sh:rgba(120,70,40,.09);--r:16px;color-scheme:light}
++:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--bg:#fbf5ee;--card:#fffdfa;--ink:#2d2420;--mut:#85746a;--line:#eddfd2;--acc:#c8563a;--onacc:#fff;--accs:#fbe6dd;--good:#3f8f5f;--goods:#e1f1e3;--ok:#5a7fb8;--oks:#e5edf8;--bad:#c2453b;--bads:#fbe3df;--hg1:#f9dcc7;--hg2:#f6cfd3;--sh:rgba(120,70,40,.09);--r:16px;color-scheme:light}
+ @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a1411;--card:#241c18;--ink:#f5ebe3;--mut:#b5a398;--line:#3b2e27;--acc:#f08a6b;--onacc:#2a120b;--accs:#4a2b20;--good:#7bd39b;--goods:#1f3a29;--ok:#8fb2ec;--oks:#1f3050;--bad:#ff8f84;--bads:#4a2320;--hg1:#4a2e22;--hg2:#472a35;--sh:rgba(0,0,0,.4);color-scheme:dark}}
+ :root[data-theme="dark"]{--bg:#1a1411;--card:#241c18;--ink:#f5ebe3;--mut:#b5a398;--line:#3b2e27;--acc:#f08a6b;--onacc:#2a120b;--accs:#4a2b20;--good:#7bd39b;--goods:#1f3a29;--ok:#8fb2ec;--oks:#1f3050;--bad:#ff8f84;--bads:#4a2320;--hg1:#4a2e22;--hg2:#472a35;--sh:rgba(0,0,0,.4);color-scheme:dark}
+ *{box-sizing:border-box}
+ html{-webkit-text-size-adjust:100%}
+-body{margin:0;background:var(--bg);color:var(--ink);font:500 15px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top,0px)}
++body{margin:0;background:var(--bg);color:var(--ink);font:500 15px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-top:var(--sat)}
+ body.lock{overflow:hidden}
+ h1,h2,h3,.ph,.big2 b{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0}
+ button,input,select,textarea{font:inherit;color:inherit}
+ button{cursor:pointer}
+ .ic{display:block;flex:none}
+ .app{max-width:640px;margin:0 auto;padding:6px 16px 40px}
+-html.pwa .app{padding-bottom:calc(116px + env(safe-area-inset-bottom,0px))}
++html.pwa .app{padding-bottom:calc(116px + var(--sab))}
+ .view>*{animation:fd .25s ease both}@keyframes fd{from{opacity:0;transform:translateY(5px)}}
+ @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+ .muted{color:var(--mut)}.fine{font-size:12.5px;margin:10px 0 0}.center{text-align:center}.block{display:block;width:100%}.big{font-size:16px}.neg{color:var(--bad)}.pre{white-space:pre-wrap}
+@@ -102,22 +102,22 @@ textarea{resize:vertical}input.em{width:56px;flex:none;text-align:center;font-si
+ .backdrop{position:absolute;inset:0;background:rgba(20,12,8,.5)}
+ .panel{position:relative;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;background:var(--card);border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.25);animation:up .25s ease}@keyframes up{from{transform:translateY(30px);opacity:0}}
+ .panel .head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px}.panel h3{font-size:19px}
+-.panel .body{overflow-y:auto;padding:6px 18px 12px;flex:1;overscroll-behavior:contain}.panel .foot{padding:10px 18px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
++.panel .body{overflow-y:auto;padding:6px 18px 12px;flex:1;overscroll-behavior:contain}.panel .foot{padding:10px 18px calc(14px + var(--sab));border-top:1px solid var(--line)}
+ .tiles{display:grid;gap:10px;padding-bottom:12px}.tile{display:grid;grid-template-columns:44px 1fr;grid-template-rows:auto auto;column-gap:14px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:16px;padding:14px}.tile .ti{grid-row:span 2;width:44px;height:44px}.tile small{color:var(--mut);font-weight:500}.tile:hover{border-color:var(--acc)}
+ #xo.on,#wz.on{background:rgba(20,12,8,.5);display:grid;place-items:center;padding:16px;overflow:auto}#xo .box{background:var(--card);border-radius:20px;padding:20px;max-width:420px;width:100%}#xo h3{margin-bottom:6px}
+ #wz.on{place-items:start center}.wz{max-width:520px;width:100%;margin:12px 0}.wzg{margin-bottom:12px}
+ #dlg{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px}#dlg[hidden]{display:none}#dlg .box{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;max-width:340px;width:100%}#dlg h3{font-size:18px;margin-bottom:8px}#dlg p{margin:0 0 16px;color:var(--mut)}#dlg .btn{flex:1}
+-#toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 24px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:50;font-weight:600}#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}.tx{background:none;border:0;color:inherit;opacity:.7;padding:2px}
++#toast{position:fixed;left:50%;bottom:calc(104px + var(--sab));transform:translate(-50%,20px);display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 24px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:50;font-weight:600}#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}.tx{background:none;border:0;color:inherit;opacity:.7;padding:2px}
+ #login{position:fixed;inset:0;z-index:60;background:var(--bg);display:grid;place-items:center;padding:16px;overflow:auto}.logincard{width:100%;max-width:360px;margin:0}.brandbig{display:flex;align-items:center;gap:10px;font:600 22px Fraunces,Georgia,serif;margin-bottom:12px}
+ /* Navigation: Browser = Seitenleiste, installierte App (PWA) = untere Leiste. Eintragen ist immer der Hauptknopf. */
+ #nav{position:fixed;z-index:20;background:var(--card)}
+ #nav .navi>button:not(.fab){display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:var(--mut);font-weight:600;font-size:12px;padding:6px 2px;min-width:0}#nav .navi>button.on{color:var(--acc)}
+ .fab{display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;color:var(--acc);font-weight:700;font-size:12px}
+-html.pwa #nav{left:0;right:0;bottom:0;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
++html.pwa #nav{left:0;right:0;bottom:0;border-top:1px solid var(--line);padding-bottom:var(--sab)}
+ html.pwa #nav .navi{max-width:640px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-around;padding:6px 8px 8px}
+ html.pwa #nav .navi>button:not(.fab){flex:1 1 0}html.pwa #nav .fab,html.pwa .fabgap{flex:1.2 1 0;min-width:0;margin-top:-30px}.fabgap{height:1px}
+ html.pwa .fab .ic{width:60px;height:60px;padding:16px;border-radius:50%;background:var(--acc);color:var(--onacc);box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 40%,transparent),0 0 0 5px var(--card)}
+-html.pwa #toast{bottom:calc(104px + env(safe-area-inset-bottom,0px))}
++html.pwa #toast{bottom:calc(104px + var(--sab))}
+ html:not(.pwa) #toast{bottom:24px}
+ html:not(.pwa) #nav{top:0;left:0;bottom:0;width:84px;border-right:1px solid var(--line);padding:14px 6px;overflow-y:auto}
+ html:not(.pwa) #nav .navi{display:flex;flex-direction:column;gap:6px}html:not(.pwa) .fabgap{display:none}
+@@ -156,8 +156,8 @@ html:not(.pwa) #sheet,html:not(.pwa) #xo,html:not(.pwa) #wz,html:not(.pwa) #dlg{
+ .lbbg{position:absolute;inset:0;background:rgba(0,0,0,.92)}
+ #lb img{position:relative;max-width:96vw;max-height:88vh;object-fit:contain;border-radius:8px}
+ .lbx,.lbn{position:absolute;z-index:2;border:0;border-radius:50%;width:46px;height:46px;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff}
+-.lbx{top:max(14px,env(safe-area-inset-top,0px));right:14px}.lbn{top:50%;margin-top:-23px}.lbn.l{left:12px}.lbn.r{right:12px}
+-.lbc{position:absolute;z-index:2;bottom:max(16px,env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;color:#fff;font-size:14px}
++.lbx{top:max(14px,var(--sat));right:14px}.lbn{top:50%;margin-top:-23px}.lbn.l{left:12px}.lbn.r{right:12px}
++.lbc{position:absolute;z-index:2;bottom:max(16px,var(--sab));left:0;right:0;text-align:center;color:#fff;font-size:14px}
+ .photobtns{gap:10px;margin-top:8px}.photobtns .photo{flex-direction:column;gap:4px;padding:14px 8px;text-align:center;font-size:13.5px}
+ .ue{padding:10px 0 4px;display:grid;gap:2px}
+ 
+@@ -172,7 +172,7 @@ img.av{display:block;object-fit:cover;background:var(--cc,#d9c7b8)}img.av::befor
+ .syncb{border:0;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;white-space:nowrap}.syncb.ok{background:var(--oks);color:var(--ok)}.syncb.bad{background:var(--bads);color:var(--bad)}
+ 
+ /* Foto zuschneiden und Zoom in der Vollbildansicht */
+-#crop{position:fixed;inset:0;z-index:80;background:#000;color:#fff;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
++#crop{position:fixed;inset:0;z-index:80;background:#000;color:#fff;display:flex;flex-direction:column;padding-top:var(--sat)}
+ #crop .cbar{padding:12px 16px;font-weight:600;text-align:center}
+ #crop .cstage{position:relative;flex:1;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+ #crop .cimg{position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;pointer-events:none;-webkit-user-drag:none}
+@@ -181,7 +181,7 @@ img.av{display:block;object-fit:cover;background:var(--cc,#d9c7b8)}img.av::befor
+ #crop .ch::after{content:"";position:absolute;left:14px;top:14px;width:16px;height:16px;background:#fff;border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+ #crop .ch.nw{left:0;top:0}#crop .ch.n{left:50%;top:0}#crop .ch.ne{left:100%;top:0}#crop .ch.e{left:100%;top:50%}
+ #crop .ch.se{left:100%;top:100%}#crop .ch.s{left:50%;top:100%}#crop .ch.sw{left:0;top:100%}#crop .ch.w{left:0;top:50%}
+-#crop .cbtns{display:flex;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:#111}
++#crop .cbtns{display:flex;gap:8px;padding:12px 16px calc(12px + var(--sab));background:#111}
+ #crop .cbtns .btn{flex:1;padding:12px 8px;font-size:14px}
+ #lb img{touch-action:none;will-change:transform}
+ 
+diff --git a/app/static/views/history.js b/app/static/views/history.js
+index 1da6526..6daace9 100644
+--- a/app/static/views/history.js
++++ b/app/static/views/history.js
+@@ -97,13 +97,13 @@ function xoRender(){const el=$('#xo');if(!XO){el.className='';el.innerHTML='';re
+     <div style="display:grid;gap:8px;margin-top:12px">${em.length?`<button class="btn primary block" data-a="xomailto">${ico('mail',18)} Mail-App mit Empfänger öffnen</button><button class="btn ghost block" data-a="xocopy">Adresse kopieren</button>`:''}<button class="btn ${em.length?'ghost':'primary'} block" data-a="xosharenow">${ico('download',18)} PDF teilen …</button><button class="btn ghost block" data-a="xoclose">Schließen</button></div>`}
+   else inner=`<h3>Bericht erstellen</h3><p class="muted">Wie möchtest du den Bericht verwenden?</p>${opt('xopdf','download','Nur PDF speichern','Lädt den Bericht als PDF-Datei herunter.')}${opt('xoprint','printer','Direkt drucken','Öffnet den Druckdialog deines Browsers.')}${opt('xomail','mail','Per E-Mail versenden','Mail-App mit der Praxis als Empfänger oder PDF teilen.')}<button class="btn ghost block" data-a="xoclose">Abbrechen</button>`;
+   el.innerHTML=`<div class="box">${inner}</div>`}
+-async function xoFetch(){const r=await fetch('/api/export/report.pdf?'+XO.q,{credentials:'same-origin'});if(!r.ok){let m='PDF konnte nicht erstellt werden';try{const j=await r.json();if(j.detail)m=j.detail}catch(_){}throw new Error(m)}return r.blob()}
++async function xoFetch(){const r=await BACKEND.raw('GET','/api/export/report.pdf?'+XO.q);if(!r.ok){let m='PDF konnte nicht erstellt werden';try{const j=await r.json();if(j.detail)m=j.detail}catch(_){}throw new Error(m)}return r.blob()}
+ function xoDownload(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),6e4)}
+ async function xoReady(em){XO.busy=1;xoRender();try{const blob=await xoFetch();XO.pending={blob,name:xoName(),em};XO.step='ready'}catch(e){XO.step='choose';toast(e.message)}XO.busy=0;xoRender()}
+ Object.assign(A,{
+   xoclose:()=>{XO=null;xoRender();return false},xoback:()=>{if(XO){XO.step='choose';xoRender()}return false},
+   xopdf:async()=>{XO.busy=1;xoRender();try{xoDownload(await xoFetch(),xoName());XO=null}catch(e){XO.busy=0;toast(e.message)}xoRender();return false},
+-  xoprint:()=>{window.open('/api/export/report?'+XO.q+'&autoprint=1','_blank');XO=null;xoRender();return false},
++  xoprint:()=>{window.open(BACKEND.url('/api/export/report?'+XO.q+'&autoprint=1'),'_blank');XO=null;xoRender();return false},
+   xomail:()=>{XO.cl=xoClinics();if(XO.cl.length>1){XO.step='vet';XO.sel=Object.fromEntries(XO.cl.map(x=>[x.v.id,1]));xoRender()}else xoReady(XO.cl.map(x=>x.v.email));return false},
+   xovetgo:()=>{const em=XO.cl.filter(x=>XO.sel[x.v.id]).map(x=>x.v.email);if(!em.length){toast('Bitte mindestens eine Praxis wählen');return false}xoReady(em);return false},
+   xocopy:async()=>{const em=XO.pending.em.join(', ');try{await navigator.clipboard.writeText(em);toast('Adresse kopiert')}catch(e){toast(em)}return false},
+diff --git a/app/static/views/more.js b/app/static/views/more.js
+index 31afdcc..7ab643b 100644
+--- a/app/static/views/more.js
++++ b/app/static/views/more.js
+@@ -42,7 +42,7 @@ function vCatalog(){const ks=catKinds();if(!ks.some(x=>x[0]==S.ck))S.ck=ks[0]?ks
+   return o}
+ A.ck=d=>{S.ck=d.v};A.coll=d=>{S.co[d.id]=!S.co[d.id]};
+ A.addman=T(async()=>{const n=(S.nv.man||'').trim();if(!n)return;await API('POST','/api/catalog/manufacturers',{name:n,kind:S.ck});S.nv.man='';return()=>toast('Hersteller angelegt')});
+-A.addfood=T(async d=>{const n=(S.nv['f'+d.id]||'').trim();if(!n)return;await API('POST','/api/foods',{manufacturer_id:+d.id,name:n});S.nv['f'+d.id]=''});
++A.addfood=T(async d=>{const n=(S.nv['f'+d.id]||'').trim();if(!n)return;await API('POST','/api/foods',{manufacturer_id:ID(d.id),name:n});S.nv['f'+d.id]=''});
+ A.delman=d=>{const m=CAT[S.ck].find(x=>x.id==d.id);ask('Hersteller löschen?',`„${m?m.name:''}“ und alle ${m?m.foods.length:0} zugehörigen Sorten werden aus der Auswahl gelöscht.`,T(async()=>{await API('DELETE','/api/manufacturers/'+d.id)}));return false};
+ A.delfood=d=>{ask('Sorte löschen?',`„${d.n}“ wird aus der Auswahl gelöscht.`,T(async()=>{await API('DELETE','/api/foods/'+d.id)}));return false};
+ A.addmed=T(async()=>{const n=(S.nv.mn||'').trim();if(!n)return;await API('POST','/api/meds',{name:n,dose:S.nv.md||'',unit:S.nv.mu||''});S.nv.mn='';S.nv.md='';S.nv.mu='';return()=>toast('Präparat angelegt')});
+@@ -56,7 +56,7 @@ A.addrt=T(async()=>{const n=NR()+1;if(n>7){toast('Maximal 7 Stufen');return}RL=[
+ A.delrt=T(async()=>{const n=NR();if(B0.some(b=>Object.values(b.cats).includes(n))){toast('Diese Stufe wird noch verwendet');return}RL=RL.filter(x=>x.score!=n);await syncR()});
+ Object.assign(E,{
+   manr:T(async t=>{const m=CAT[S.ck].find(x=>x.id==t.dataset.i),v=t.value.trim();if(!m||!v||v==m.name)return;await API('PUT','/api/manufacturers/'+m.id,{name:v})}),
+-  foodr:T(async t=>{await API('PUT','/api/foods/'+t.dataset.i,{manufacturer_id:+t.dataset.m,name:t.value.trim()})}),
++  foodr:T(async t=>{await API('PUT','/api/foods/'+t.dataset.i,{manufacturer_id:ID(t.dataset.m),name:t.value.trim()})}),
+   medn:T(async t=>{const m=MEDS.find(x=>x.id==t.dataset.i),v=t.value.trim();if(!m||!v||v==m.name)return;await API('PUT','/api/meds/'+m.id,{name:v,dose:m.dose,unit:m.unit})}),
+   medd:T(async t=>{const m=MEDS.find(x=>x.id==t.dataset.i);if(!m||t.value.trim()==m.dose)return;await API('PUT','/api/meds/'+m.id,{name:m.name,dose:t.value.trim(),unit:m.unit})}),
+   medu:T(async t=>{const m=MEDS.find(x=>x.id==t.dataset.i);if(!m||t.value.trim()==m.unit)return;await API('PUT','/api/meds/'+m.id,{name:m.name,dose:m.dose,unit:t.value.trim()})}),
+@@ -132,7 +132,7 @@ Object.assign(E,{font:t=>{PREFS.ui[t.dataset.k]=t.value;applyTheme();savePrefs()
+ /* ---------- Backup & Konto ---------- */
+ function vBackup(){return card('Datensicherung',`<p class="muted">Lädt eine vollständige Sicherung der Datenbank (.db) herunter: Tiere, Einträge, Gesundheitsdaten, Einstellungen und Benutzerkonten. Hochgeladene Fotos liegen im Ordner data/uploads und werden separat gesichert.</p>${ME&&ME.is_admin?`<button class="btn primary block" data-a="dbdump">${ico('download',18)} Datenbank sichern</button>`:'<p class="muted">Die Datensicherung ist nur für Administratoren verfügbar.</p>'}`)+
+   card('Export',`<p class="muted">Alle Fütterungen als CSV (Semikolon-getrennt, direkt in Excel nutzbar).</p><button class="btn ghost block" data-a="expCsv">${ico('download',18)} CSV exportieren</button>`)}
+-A.dbdump=()=>{location.href='/api/export/db';return false};A.expCsv=()=>{location.href='/api/export/csv?lang='+LANG;return false};
++A.dbdump=()=>{location.href=BACKEND.url('/api/export/db');return false};A.expCsv=()=>{location.href=BACKEND.url('/api/export/csv?lang='+LANG);return false};
+ let USERS=[];
+ async function loadUsers(){if(!ME||!ME.is_admin)return;try{USERS=await API('GET','/api/users')}catch(e){}render()}
+ const userEdit=(u,me)=>`<div class="ue">${field('Benutzername',inp('ue.name'))}${field('Neues Passwort',`<input type="password" data-b="ue.pw" value="${esc(S.ue.pw||'')}" placeholder="leer lassen = unverändert (mind. 8 Zeichen)" autocomplete="new-password">`)}${sw('ue.admin','Administrator')}<p class="muted fine">Ein neues Passwort meldet alle Geräte dieses Benutzers ab.</p><div class="row nowrap" style="margin-top:8px"><button class="btn primary" data-a="usave">Speichern</button>${me?'':`<button class="btn ghost dngtxt" data-a="udel" data-id="${u.id}">${ico('trash',16)} Löschen</button>`}</div></div>`;
+@@ -147,7 +147,7 @@ function vAccount(){
+ A.pwsave=async()=>{const p=S.pw;if(!p.cur||!p.n1)return false;if(p.n1.length<8){toast('Neues Passwort mind. 8 Zeichen');return false}if(p.n1!=p.n2){toast('Die neuen Passwörter stimmen nicht überein');return false}
+   try{await API('PUT','/api/me/password',{current:p.cur,new:p.n1});toast('Passwort geändert');S.pw={cur:'',n1:'',n2:''}}catch(e){}render();return false};
+ A.uedit=d=>{if(S.uedit==d.id){S.uedit=null;return}const u=USERS.find(x=>x.id==d.id);S.uedit=u.id;S.ue={name:u.username,pw:'',admin:u.is_admin}};
+-async function refreshMe(){try{const st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());if(st.user)ME=st.user}catch(e){}}
++async function refreshMe(){try{const st=await BACKEND.raw('GET','/api/auth/status').then(r=>r.json());if(st.user)ME=st.user}catch(e){}}
+ A.usave=async()=>{const u=USERS.find(x=>x.id==S.uedit),e=S.ue,b={};if(!u)return false;
+   if(e.name.trim()&&e.name.trim()!=u.username)b.username=e.name.trim();if(e.pw)b.password=e.pw;if(!!e.admin!=u.is_admin)b.is_admin=!!e.admin;
+   if(!Object.keys(b).length){toast('Keine Änderung');return false}
+diff --git a/app/static/views/pets.js b/app/static/views/pets.js
+index 0ca398a..f3621a8 100644
+--- a/app/static/views/pets.js
++++ b/app/static/views/pets.js
+@@ -5,7 +5,7 @@ const vacState=v=>{const today=new Date(nowIso().slice(0,10)+'T00:00');
+   if(v.planned_date&&!v.date_given){const d=Math.round((new Date(v.planned_date+'T00:00')-today)/864e5);return{d,c:d<0?'bad':'ok',t:d<0?'überfällig':'geplant'}}
+   if(v.no_expiry)return{d:null,c:'good',t:'kein Ablauf'};
+   if(!v.valid_until)return null;const d=Math.round((new Date(v.valid_until+'T00:00')-today)/864e5);return d<0?{d,c:'bad',t:'abgelaufen'}:d<=30?{d,c:'ok',t:'läuft bald ab'}:{d,c:'good',t:'gültig'}};
+-A.openpet=d=>{S.tab='pets';S.pet=+d.id;S.pt='profile';S.np=null};
++A.openpet=d=>{S.tab='pets';S.pet=ID(d.id);S.pt='profile';S.np=null};
+ A.newpet=()=>{S.sh=null;S.tab='pets';S.pet=null;S.np={name:'',bd:''}};
+ A.petback=()=>{S.pet=null;S.np=null};
+ A.ptab=d=>{S.pt=d.v};
+@@ -77,7 +77,7 @@ function pVac(c){const all=VAC.filter(v=>v.cat_id==c.id),vs=all.filter(v=>!vplan
+ A.vadd=T(async d=>{const V=S.vac;let n=V.t=='__new'?(V.nt||'').trim():V.t;if(!n){toast('Bitte die Impfart wählen oder eingeben');return}
+   if(V.plan&&!V.pd){toast('Bitte ein Datum für die Planung wählen');return}
+   if(V.t=='__new')await API('POST','/api/health/vaccine-types',{name:n});
+-  await API('POST','/api/health/vaccinations',{cat_id:+d.c,vaccine_name:n,date_given:V.plan?null:(V.g||null),valid_until:V.plan?null:durUntil(V.g,V.dur,V.u),no_expiry:V.dur=='none'&&!V.plan,planned_date:V.plan?V.pd:null});
++  await API('POST','/api/health/vaccinations',{cat_id:ID(d.c),vaccine_name:n,date_given:V.plan?null:(V.g||null),valid_until:V.plan?null:durUntil(V.g,V.dur,V.u),no_expiry:V.dur=='none'&&!V.plan,planned_date:V.plan?V.pd:null});
+   S.vac={t:'',nt:'',g:'',u:'',dur:'1y',plan:false,pd:''};return()=>toast(V.plan?'Impfung geplant':'Impfung eingetragen')});
+ A.vdone=d=>{const v=VAC.find(x=>x.id==d.id);if(!v)return;const c=CATS.find(x=>x.id==v.cat_id)||{};S.sh={t:'vdone',id:v.id,name:v.vaccine_name,cat:c.name||'',g:nowIso().slice(0,10),u:'',dur:'1y'}};
+ A.vdel=d=>{const v=VAC.find(x=>x.id==d.id)||{};ask('Impfung löschen?',`„${v.vaccine_name||''}“ wird aus dem Impfpass entfernt.`,T(async()=>{await API('DELETE','/api/health/vaccinations/'+d.id)}));return false};
+@@ -119,8 +119,8 @@ function pVal(c){
+   o+=card('Messfelder',`<div class="chips">${flds.map(x=>`<span class="chip static">${esc(x.name)}${x.unit?' ('+esc(x.unit)+')':''}${x.builtin?'':`<button class="x" data-a="hfdel" data-id="${x.id}" aria-label="Entfernen">${ico('x',12)}</button>`}</span>`).join('')}</div>
+   <div class="grid2" style="margin-top:12px">${field('Neues Feld',inp('nfld.n',{ph:'Name, z. B. Puls'}))}${field('Einheit',inp('nfld.u',{ph:'Einheit'}))}</div><button class="btn ghost block" data-a="hfadd">Feld hinzufügen</button>`);
+   return o}
+-A.hvf=d=>{S.hv.f=+d.v};A.hvr=d=>{S.hv.r=+d.v};
+-A.valadd=d=>{const c=CATS.find(x=>x.id==d.c);S.sh={...measInit(),cat:c.name,f:+d.f}};
++A.hvf=d=>{S.hv.f=ID(d.v)};A.hvr=d=>{S.hv.r=+d.v};
++A.valadd=d=>{const c=CATS.find(x=>x.id==d.c);S.sh={...measInit(),cat:c.name,f:ID(d.f)}};
+ A.hvdel=d=>{ask('Wert löschen?','Dieser Messwert wird endgültig gelöscht.',T(async()=>{await API('DELETE','/api/health/values/'+d.id)}));return false};
+ A.hfadd=T(async()=>{const n=(S.nfld.n||'').trim();if(!n)return;await API('POST','/api/health/fields',{name:n,unit:S.nfld.u||''});S.nfld={n:'',u:''};return()=>toast('Feld angelegt')});
+ A.hfdel=d=>{const f=HF.fields.find(x=>x.id==d.id)||{};ask('Feld löschen?',`„${f.name}“ wird ausgeblendet. Bereits erfasste Werte bleiben gespeichert.`,T(async()=>{await API('DELETE','/api/health/fields/'+d.id)}));return false};
+@@ -136,7 +136,7 @@ function pTreat(c){
+   return o}
+ A.tfopen=()=>{S.tf={title:'',start:nowIso(),int:'4',cint:'',notes:''}};A.tfclose=()=>{S.tf=null};A.tfnow=()=>{if(S.tf)S.tf.start=nowIso()};
+ A.tfsave=T(async d=>{const f=S.tf;if(!f)return;const title=(f.title||'').trim();if(!title){toast('Bitte eine Bezeichnung eingeben');return}const iv=f.int=='custom'?parseInt(f.cint):(f.int?+f.int:null);if(f.int=='custom'&&!(iv>=1&&iv<=168)){toast('Intervall: 1 bis 168 Stunden');return}
+-  await API('POST','/api/health/treatments',{cat_id:+d.c,title,start_timestamp:f.start||null,interval_hours:iv||null,notes:f.notes});S.tf=null;return()=>toast('Behandlung gestartet')});
++  await API('POST','/api/health/treatments',{cat_id:ID(d.c),title,start_timestamp:f.start||null,interval_hours:iv||null,notes:f.notes});S.tf=null;return()=>toast('Behandlung gestartet')});
+ A.trlogs=d=>{S.tx[d.id]=!S.tx[d.id]};
+ A.trdone=d=>{const t=TR.find(x=>x.id==d.id)||{};ask('Behandlung abschließen?',`„${t.title||''}“ wird archiviert und bleibt für den Tierarztbericht erhalten.`,T(async()=>{await API('PUT','/api/health/treatments/'+d.id,{is_active:false});return()=>toast('Behandlung abgeschlossen und archiviert')}),'Abschließen',false);return false};
+ A.trreact=T(async d=>{await API('PUT','/api/health/treatments/'+d.id,{is_active:true})});
+diff --git a/app/static/views/sheet.js b/app/static/views/sheet.js
+index eaad3d6..68059f1 100644
+--- a/app/static/views/sheet.js
++++ b/app/static/views/sheet.js
+@@ -28,7 +28,7 @@ A.addmenu=()=>{const tl=menuTiles();if(!tl.length){toast('Keine Eintragsart akti
+ A.m_feed=()=>{S.sh=feedInit()};A.m_meds=()=>{S.sh=medsInit()};A.m_inc=()=>{S.sh=incInit()};A.m_meas=()=>{S.sh=measInit()};
+ A.m_pinfo=()=>{S.sh={t:'pinfo',cat:CATS[0].name,sec:'profile'}};
+ A.m_tstart=()=>{S.sh={t:'tstart',cat:CATS.length==1?CATS[0].name:'',title:'',start:nowIso(),int:'4',cint:'',notes:''}};
+-A.m_tlog=d=>{S.sh=tlogInit(d&&d.tid?+d.tid:null,d&&d.type)};
++A.m_tlog=d=>{S.sh=tlogInit(d&&d.tid?ID(d.tid):null,d&&d.type)};
+ A.shclose=()=>{if(S.sh&&S.sh.pv)S.sh.pv.forEach(u=>URL.revokeObjectURL(u));S.sh=null};
+ function renderSheet(){const el=$('#sheet'),s=S.sh;
+   if(!s){el.className='';el.innerHTML='';document.body.classList.remove('lock');shT=null;return}
+@@ -73,14 +73,14 @@ A.frate=d=>{S.sh.sel[d.c]=+d.v};
+ A.fman=v=>{const s=S.sh,m=(CAT[s.kind]||[]).find(x=>x.id==v);s.food=m&&m.foods[0]?m.foods[0].id:''};
+ A.ffood=()=>{};
+ A.fnewman=T(async()=>{const s=S.sh,n=(s.nn||'').trim();if(!n)return;const r=await API('POST','/api/catalog/manufacturers',{name:n,kind:s.kind});return()=>{s.man=r.id;s.food='';s.nn=''}});
+-A.fnewfood=T(async()=>{const s=S.sh,n=(s.nfn||'').trim();if(!n||!s.man)return;const r=await API('POST','/api/foods',{manufacturer_id:+s.man,name:n});return()=>{s.food=r.id;s.nfn=''}});
++A.fnewfood=T(async()=>{const s=S.sh,n=(s.nfn||'').trim();if(!n||!s.man)return;const r=await API('POST','/api/foods',{manufacturer_id:ID(s.man),name:n});return()=>{s.food=r.id;s.nfn=''}});
+ A.fmed=d=>{const s=S.sh;if(d.v in s.ms)delete s.ms[d.v];else{const m=MEDS.find(x=>x.id==d.v);s.ms[d.v]=m?m.dose:''}};
+ A.nmedtog=()=>{S.sh.nmed=!S.sh.nmed};
+ A.newmed=T(async()=>{const s=S.sh,n=(s.nmn||'').trim();if(!n)return;const r=await API('POST','/api/meds',{name:n,dose:s.nmd||'',unit:s.nmu||''});return()=>{if(s.t=='feed')s.ms[r.id]=s.nmd||'';else{s.med=r.id;s.dose=s.nmd||''}s.nmed=false;s.nmn='';s.nmd='';s.nmu=''}});
+ const feedPend=(kind,mid,fid,cats,note,ts)=>{const m=(CAT[kind]||[]).find(x=>x.id==mid),f=m&&m.foods.find(x=>x.id==fid);return{t:'feed',kind,mid,fid,man:m?m.name:'',food:f?f.name:'',cats:{...cats},note,ts}};
+ A.fsave=T(async()=>{const s=S.sh,names=Object.keys(s.sel);if(!names.length||!s.food)return;const ts=s.ts||nowIso();
+-  const body={cat_ratings:s.sel,manufacturer_id:+s.man,food_id:+s.food,notes:s.note,timestamp:ts,kind:s.kind};
+-  if(s.edit)await API('PUT','/api/feedings/batch/'+encodeURIComponent(s.edit),body);else await mut('POST','/api/feedings',body,null,feedPend(s.kind,+s.man,+s.food,s.sel,s.note,ts));
++  const body={cat_ratings:s.sel,manufacturer_id:ID(s.man),food_id:ID(s.food),notes:s.note,timestamp:ts,kind:s.kind};
++  if(s.edit)await API('PUT','/api/feedings/batch/'+encodeURIComponent(s.edit),body);else await mut('POST','/api/feedings',body,null,feedPend(s.kind,ID(s.man),ID(s.food),s.sel,s.note,ts));
+   if(!s.edit&&s.dm&&ft('meds'))for(const [id,dose] of Object.entries(s.ms)){const mm=MEDS.find(x=>x.id==id),ds=doseStr(mm,dose);await mut('POST','/api/med-logs',{cat_names:names,med_id:+id,dose:ds,with_food:true,timestamp:ts,notes:''},null,{t:'med',med:mm?mm.name:'',dose:ds,wf:true,cats:names,note:'',ts})}
+   const n=Object.keys(s.ms).length,all=Object.values(s.sel).every(r=>r==NR());S.sh=null;
+   return()=>toast(s.edit?'Fütterung aktualisiert':okMsg(s.dm&&n?'Fütterung mit Präparat gespeichert':all?'Alle haben’s geliebt':'Fütterung gespeichert'))});
+@@ -140,7 +140,7 @@ SH.meas=s=>{const f=HF.fields.find(x=>x.id==s.f);
+    `<button class="btn primary block" data-a="measave" ${s.cat&&s.f?'':'disabled'}>${ico('check',18)} Wert speichern</button>`]};
+ A.mecat=d=>{S.sh.cat=d.v};
+ A.measave=T(async()=>{const s=S.sh,v=String(s.val).replace(',','.').trim(),c=catByName(s.cat);if(v===''||isNaN(+v)){toast('Bitte einen Wert eingeben');return}
+-  const ts=s.ts||nowIso(),fl=HF.fields.find(x=>x.id==s.f);await mut('POST','/api/health/values',{cat_id:c.id,field_id:+s.f,value:+v,ts,note:s.note||''},null,{t:'val',cat_id:c.id,field_id:+s.f,value:+v,ts,note:s.note||'',label:fl?fl.name:''});S.sh=null;return()=>toast(okMsg('Wert gespeichert'))});
++  const ts=s.ts||nowIso(),fl=HF.fields.find(x=>x.id==s.f);await mut('POST','/api/health/values',{cat_id:c.id,field_id:ID(s.f),value:+v,ts,note:s.note||''},null,{t:'val',cat_id:c.id,field_id:ID(s.f),value:+v,ts,note:s.note||'',label:fl?fl.name:''});S.sh=null;return()=>toast(okMsg('Wert gespeichert'))});
+ 
+ /* ---------- Behandlungs-Log ---------- */
+ SH.tlog=s=>{const a=activeTR(),lt=LOGT.find(x=>x[0]==s.type);
+@@ -150,7 +150,7 @@ SH.tlog=s=>{const a=activeTR(),lt=LOGT.find(x=>x[0]==s.type);
+    sect('Beschreibung & Zeit',`${inp('sh.comment',{ph:lt?lt[2]:''})}<div style="height:8px"></div><input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}">`),
+    `<button class="btn primary block" data-a="tlsave">${ico('check',18)} Eintrag speichern</button>`]};
+ A.tltype=d=>{S.sh.type=d.v};
+-A.tlsave=T(async()=>{const s=S.sh;const ts=s.ts||nowIso();await mut('POST','/api/health/treatments/'+s.tid+'/logs',{log_type:s.type,value_comment:s.comment,timestamp:ts},null,{t:'tlog',tid:+s.tid,type:s.type,comment:s.comment,ts});S.sh=null;return()=>toast(okMsg('Eintrag gespeichert'))});
++A.tlsave=T(async()=>{const s=S.sh;const ts=s.ts||nowIso();await mut('POST','/api/health/treatments/'+s.tid+'/logs',{log_type:s.type,value_comment:s.comment,timestamp:ts},null,{t:'tlog',tid:ID(s.tid),type:s.type,comment:s.comment,ts});S.sh=null;return()=>toast(okMsg('Eintrag gespeichert'))});
+ 
+ /* ---------- Bearbeiten (Verlauf) ---------- */
+ SH.emed=s=>['Präparat bearbeiten',`<p class="muted"><b>${esc(s.med)}</b> – ${esc(s.cats.join(', '))}</p>`+sect('Dosis',inp('sh.dose',{ph:'z. B. 1 Tablette'})+sw('sh.wf','Zusammen mit der Fütterung gegeben'))+sect('Zeitpunkt & Anmerkung',`<input type="datetime-local" data-b="sh.ts" value="${esc(s.ts)}"><div style="height:8px"></div>${inp('sh.note',{ph:'Anmerkung (optional)'})}`),`<button class="btn primary block" data-a="emsave">Änderungen speichern</button>`];

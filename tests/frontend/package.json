@@ -1,0 +1,6 @@
+{
+  "name": "meowmetrics-frontend-tests",
+  "private": true,
+  "description": "Rauchtest der Oberfläche (jsdom) gegen einen echten Server",
+  "devDependencies": { "jsdom": "^24.1.0" }
+}
