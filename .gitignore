@@ -13,3 +13,6 @@ __pycache__/
 .env
 .DS_Store
 EOF
+
+node_modules/
+.venv/

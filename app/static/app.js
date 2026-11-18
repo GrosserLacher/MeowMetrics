@@ -17,11 +17,13 @@ function applyTheme(){const r=document.documentElement,st=r.style,U=PREFS.ui;
   ['fh','fb'].forEach(k=>{if(U[k]){loadFont(U[k]);st.setProperty('--'+k,fam(U[k]))}else st.removeProperty('--'+k)});
   document.body.style.fontSize=(U.fs||15)+'px';
   r.classList.toggle('pwa',APPSHELL||U.view=='pwa'||(U.view!='web'&&PWA));
-  const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',navColor())}
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',navColor());
+  if(window.MMNative&&MMNative.setBars)try{MMNative.setBars(isDark())}catch(e){}}
 A.tab=d=>{S.tab=d.v;S.pet=null;S.np=null;S.more='';S.sh=null;window.scrollTo(0,0)};
 A.lang=()=>{const ks=Object.keys((window.I18N||{}).languages||{de:1});setLang(ks[(ks.indexOf(LANG)+1)%ks.length])};
 
 const syncBadge=()=>SYNCING?'<span class="syncb ok">Synchronisiere …</span>':(OFFLINE||PENDING)?`<button class="syncb ${OFFLINE?'bad':'ok'}" data-a="syncnow">${OFFLINE?'Offline':'Sync'}${PENDING?' · '+PENDING+' ausstehend':''}</button>`:'';
+let LASTVK='';
 function render(){
   if(!ME)return;
   if(S.tab=='hist'&&!histOn())S.tab='today';
@@ -29,7 +31,8 @@ function render(){
   $('#top').innerHTML=`<div class="topbar"><div class="brand">${S.tab=='today'?`<span class="logo">${ico('paw',18)}</span><b>${esc(window.APP_NAME||'')}</b>`:`<b>${SUBTITLE[S.tab]}</b>`}</div><div class="row nowrap">${syncBadge()}${iconBtn('togtheme','theme','Hell/Dunkel wechseln')}<button class="ib txt" data-a="lang" aria-label="Sprache">${LANG.toUpperCase()}</button></div></div>`;
   const a=$('#app');
   a.style.setProperty('--catimg',S.tab=='today'?heroArt():'none');
-  a.className=(S.tab=='today'&&heroArt()=='none'?'nocat ':'')+'view';
+  const vk=[S.tab,S.pet,S.pt,S.more,S.hist,S.ck,!!S.np].join('|'),anim=vk!==LASTVK;LASTVK=vk;   // Einblenden nur beim Ansichtswechsel, nicht bei jeder Auswahl
+  a.className=(S.tab=='today'&&heroArt()=='none'?'nocat ':'')+'view'+(anim?' anim':'');
   a.innerHTML={today:vToday,hist:vHist,pets:vPets,more:vMore}[S.tab]();
   const canAdd=menuTiles().length>0&&CATS.length>=0;
   $('#nav').innerHTML=`<div class="navi">${tabs.map(t=>t=='fab'?(canAdd?`<button class="fab" data-a="addmenu" aria-label="Aktionen">${ico('plus',28)}<span>Aktionen</span></button>`:'<span class="fabgap"></span>'):`<button class="${S.tab==t[0]?'on':''}" data-a="tab" data-v="${t[0]}" aria-label="${t[1]}">${ico(t[2],22)}<span>${t[1]}</span></button>`).join('')}</div>`;
@@ -39,6 +42,7 @@ function render(){
 /* ---------- Zurück (Android-Taste, Browser-Zurück): erst im App-Zustand zurück, am Start verlassen ---------- */
 const atRoot=()=>!(S.lb||S.dlg||(typeof XO!='undefined'&&XO)||S.sh||S.np||S.pet!=null||S.more||S.tab!='today');
 function backStep(){
+  if(CROPCANCEL){CROPCANCEL();return true}
   if(S.lb){S.lb=null;return true}
   if(S.dlg){A.dno();return true}
   if(typeof XO!='undefined'&&XO){XO=null;return true}
@@ -64,11 +68,14 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t
 document.addEventListener('input',e=>{const t=e.target;if(t.dataset.b&&t.type!='checkbox'&&t.tagName!='SELECT')setPath(t.dataset.b,t.value)});
 document.addEventListener('change',e=>{const t=e.target,d=t.dataset;
   if((t.id=='ximg'||t.id=='xcam')&&S.sh){const s=S.sh,fl=[...t.files];t.value='';
-    if(s.t=='evomit'){s.files=fl.slice(0,1)}
-    else if(s.ty=='vomit'){s.pv.forEach(u=>URL.revokeObjectURL(u));s.files=fl.slice(0,1);s.pv=s.files.map(f=>URL.createObjectURL(f))}
-    else{const room=4-s.files.length;fl.slice(0,room).forEach(f=>{s.files.push(f);s.pv.push(URL.createObjectURL(f))});if(fl.length>room)toast('Maximal 4 Fotos pro Eintrag')}
-    render();return}
-  if(t.id=='phcam'||t.id=='phpick'){const f=t.files[0];t.value='';if(f&&S.pet!=null)uploadPetPhoto(S.pet,f);return}
+    (async()=>{const single=s.t=='evomit'||s.ty=='vomit',lim=single?1:Math.max(0,4-s.files.length),pick=fl.slice(0,lim),out=[];
+      for(let i=0;i<pick.length;i++){const f=await cropPhoto(pick[i],pick.length>1?(LANG=='en'?`Photo ${i+1} of ${pick.length}`:`Foto ${i+1} von ${pick.length}`):'');if(f)out.push(f)}
+      if(S.sh!==s||!out.length)return;
+      if(s.t=='evomit'){s.files=out.slice(0,1)}
+      else if(s.ty=='vomit'){s.pv.forEach(u=>URL.revokeObjectURL(u));s.files=out.slice(0,1);s.pv=s.files.map(f=>URL.createObjectURL(f))}
+      else{out.forEach(f=>{s.files.push(f);s.pv.push(URL.createObjectURL(f))});if(fl.length>lim)toast('Maximal 4 Fotos pro Eintrag')}
+      render()})();return}
+  if(t.id=='phcam'||t.id=='phpick'){const f=t.files[0],pid=S.pet;t.value='';if(f&&pid!=null)cropPhoto(f,'').then(b=>{if(b)uploadPetPhoto(pid,b)});return}
   if(d.b){setPath(d.b,t.type=='checkbox'?t.checked:t.value);if(d.ch&&A[d.ch])A[d.ch](t.value,t);if('r' in d||d.ch)render();return}
   if(d.e&&E[d.e]){E[d.e](t);render();return}
   if('hd' in d){HD=t.checked;PREFS.hd=HD?1:0;applyHide();savePrefs();render();return}
@@ -82,7 +89,7 @@ document.addEventListener('input',e=>{const t=e.target,d=t.dataset;
 A.zoom=(d,t)=>{const g=t.closest('.card,.panel')||document,l=[...g.querySelectorAll('[data-a=zoom]')].map(e=>e.dataset.src);S.lb={list:l,i:Math.max(0,l.indexOf(d.src))}};
 A.lbc=()=>{S.lb=null};A.lbp=()=>{const l=S.lb;l.i=(l.i-1+l.list.length)%l.list.length};A.lbnx=()=>{const l=S.lb;l.i=(l.i+1)%l.list.length};
 function renderLb(){const el=$('#lb'),l=S.lb;if(!l){el.className='';el.innerHTML='';return}el.className='on';const n=l.list.length;
-  el.innerHTML=`<div class="lbbg" data-a="lbc"></div><button class="lbx" data-a="lbc" aria-label="Schließen">${ico('x',24)}</button>${n>1?`<button class="lbn l" data-a="lbp" aria-label="Zurück">${ico('back',28)}</button><button class="lbn r" data-a="lbnx" aria-label="Weiter">${ico('chev',28)}</button><div class="lbc">${l.i+1} / ${n}</div>`:''}<img src="${esc(l.list[l.i])}" alt="Foto">`}
+  el.innerHTML=`<div class="lbbg" data-a="lbc"></div><button class="lbx" data-a="lbc" aria-label="Schließen">${ico('x',24)}</button>${n>1?`<button class="lbn l" data-a="lbp" aria-label="Zurück">${ico('back',28)}</button><button class="lbn r" data-a="lbnx" aria-label="Weiter">${ico('chev',28)}</button><div class="lbc">${l.i+1} / ${n}</div>`:''}<img src="${esc(l.list[l.i])}" alt="Foto">`;lbBind(el,l)}
 document.addEventListener('keydown',e=>{if(!S.lb)return;if(e.key=='ArrowLeft'){A.lbp();render()}else if(e.key=='ArrowRight'){A.lbnx();render()}},true);
 document.addEventListener('keydown',e=>{if(e.key=='Escape'){if(S.lb){S.lb=null;render();return}if(S.dlg)A.dno();else if(S.sh){A.shclose();render()}}});
 setInterval(()=>$$('[data-tick]').forEach(e=>{e.textContent=tickTxt(e.dataset.tick,+e.dataset.ts)}),30000);
@@ -105,16 +112,16 @@ const detectLang=()=>{const n=(navigator.language||'de').slice(0,2).toLowerCase(
 function showLogin(setup){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
   el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">${setup?'Willkommen! Administrator anlegen':'Anmelden'}</h2><p class="muted">${setup?'Der erste Benutzer wird Administrator. Weitere Benutzer legst du später in den Einstellungen an.':'Dieses Gerät bleibt danach angemeldet.'}</p>
   <input type="text" id="lu" placeholder="Benutzername" autocomplete="username" enterkeyhint="next"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}" enterkeyhint="go"><div id="le" class="warnbox" hidden></div><button class="btn primary block" id="lb" style="margin-top:12px">${setup?'Konto anlegen':'Anmelden'}</button></div>`;
-  const go=async()=>{const r=await fetch(setup?'/api/setup-admin':'/api/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('#lu').value,password:$('#lp').value})});
+  const go=async()=>{const r=await BACKEND.raw('POST',setup?'/api/setup-admin':'/api/login',{json:{username:$('#lu').value,password:$('#lp').value}});
     if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}const x=$('#le');x.hidden=false;x.textContent=d;return}el.remove();await initApp()};
-  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};$('#lu').focus()}
+  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};['#lu','#lp'].forEach(q=>$(q).addEventListener('focus',e=>setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),350)));$('#lu').focus()}
 function showOffline(){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
   el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">Keine Verbindung</h2><p class="muted">Beim ersten Start wird eine Verbindung zum Server benötigt. Danach funktioniert die App auch offline.</p><button class="btn primary block" onclick="location.reload()">Erneut versuchen</button></div>`}
 function registerSW(){if(SECURE&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{})}
 async function initApp(){
   let st,p;
   try{
-    st=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());
+    st=await BACKEND.raw('GET','/api/auth/status').then(r=>r.json());
     if(st.needs_setup){showLogin(true);return}
     ME=st.user;if(!ME){showLogin(false);return}
     p=await API('GET','/api/prefs');
