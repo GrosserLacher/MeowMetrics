@@ -1,11 +1,12 @@
 package io.github.grosserlacher.meowmetrics;
 
+import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
@@ -34,12 +35,17 @@ import com.getcapacitor.BridgeWebViewClient;
  *
  * Darstellung: Die App zeichnet randlos unter Status- und Navigationsleiste (beide transparent). Die Höhe der Leisten
  * wird der Seite als CSS-Variablen --sat und --sab übergeben, die Symbolfarbe stellt die Seite über MMNative.setBars ein.
- * Bei geöffneter Tastatur schrumpft der Inhalt.
+ * Bei geöffneter Tastatur wird der WebView von unten verkleinert.
  */
 public class MainActivity extends BridgeActivity {
 
     private int insetTop = 0;
     private int insetBottom = 0;
+    private boolean insetsReported = false;
+
+    private boolean debuggable() {
+        return (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
 
     /** Wird von der Seite aufgerufen: dunkles Design -> helle Symbole in den Leisten, helles Design -> dunkle Symbole. */
     public class NativeBridge {
@@ -84,16 +90,29 @@ public class MainActivity extends BridgeActivity {
         if (Build.VERSION.SDK_INT >= 29) {
             window.setNavigationBarContrastEnforced(false);
         }
-        View content = findViewById(android.R.id.content);
-        ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
+        // Abstände: Der Listener hängt (wie bei Capacitor selbst) am WebView. Die Höhe der Leisten geht als CSS-Variablen
+        // an die Seite, die Tastatur verkleinert den WebView von unten.
+        final WebView web = getBridge().getWebView();
+        ViewCompat.setOnApplyWindowInsetsListener(web, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            v.setPadding(0, 0, 0, ime.bottom);                 // Tastatur: Inhalt schrumpft
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+            if (lp.bottomMargin != ime.bottom) {
+                lp.bottomMargin = ime.bottom;
+                v.setLayoutParams(lp);
+            }
             insetTop = bars.top;
             insetBottom = ime.bottom > 0 ? 0 : bars.bottom;   // über der Tastatur gibt es keinen Navigationsbereich
             pushInsets();
+            if (!insetsReported) {
+                insetsReported = true;
+                if (debuggable()) {
+                    note("Leisten: oben " + insetTop + " px, unten " + insetBottom + " px");   // nur Test-APK
+                }
+            }
             return WindowInsetsCompat.CONSUMED;
         });
+        ViewCompat.requestApplyInsets(web);
         getBridge().getWebView().addJavascriptInterface(new NativeBridge(), "MMNative");
 
         // Zurück-Taste: erst im WebView zurück (die PWA legt für Dialoge, Detailseiten und Untermenüs Verlaufseinträge an),

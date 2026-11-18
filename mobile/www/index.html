@@ -144,6 +144,8 @@ input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accs
   $('retry').onclick=function(){var u=get();if(u)goBusy(u)};
   $('change').onclick=toSetup;
   apply();
+  // Eingabefeld bei geöffneter Tastatur in den sichtbaren Bereich holen
+  document.querySelectorAll('input').forEach(function(i){i.addEventListener('focus',function(){setTimeout(function(){i.scrollIntoView({block:'center',behavior:'smooth'})},350)})});
 
   // ?down=1: Capacitor zeigt diese Seite, wenn der Server nicht lädt. ?change=1: "Server wechseln" aus der App.
   if(/[?&]down=1/.test(location.search))showDown();

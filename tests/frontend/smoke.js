@@ -60,6 +60,25 @@ let fails=0;const ok=(c,m)=>{console.log((c?'  OK  ':' FEHL ')+m);if(!c)fails++}
   w.eval('A.fsave()');await wait(800);
   const feed=await api('GET','/api/feedings');
   ok(feed.length>=1,'Fütterung wurde über BACKEND gespeichert ('+feed.length+')');
+  // Kein Flackern: Auswahl im Blatt darf weder die Ansicht noch das Blatt neu einblenden
+  w.eval('S.sh=feedInit("food");render()');await wait(60);
+  ok($('#sheet .panel').classList.contains('fresh'),'Blatt blendet beim Öffnen ein (fresh)');
+  w.eval('render()');await wait(30);
+  ok(!$('#sheet .panel').classList.contains('fresh'),'Blatt blendet bei Auswahl NICHT erneut ein');
+  const chip=$('#sheet .chip.pet');chip.click();await wait(40);
+  ok(!$('#sheet .panel').classList.contains('fresh')&&!$('#app').classList.contains('anim'),'Tier abwählen: weder Blatt noch Ansicht werden neu eingeblendet');
+  w.eval('A.shclose();render()');await wait(30);
+  w.eval('A.tab({v:"pets"});render()');await wait(30);
+  ok($('#app').classList.contains('anim'),'Tabwechsel blendet die Ansicht ein');
+  w.eval('render()');await wait(30);
+  ok(!$('#app').classList.contains('anim'),'erneutes Zeichnen derselben Ansicht blendet nicht erneut ein');
+  w.eval('A.tab({v:"today"});render()');await wait(30);
+  // Synchronisation unter Daten & Backup
+  w.eval('S.tab="more";S.more="";render()');await wait(30);
+  ok(![...$('#app').querySelectorAll('.li.link b')].some(b=>b.textContent=='Synchronisation'),'Mehr: kein eigener Punkt Synchronisation mehr');
+  w.eval('S.more="backup";render()');await wait(30);
+  ok([...$('#app').querySelectorAll('h2')].some(h=>h.textContent.trim()=='Synchronisation'),'Daten & Backup enthält Synchronisation');
+  w.eval('S.tab="today";S.more="";render()');await wait(30);
   // Anmeldeseite: Enter-Hinweise
   w.eval('showLogin(false)');
   ok($('#lu').getAttribute('enterkeyhint')=='next'&&$('#lp').getAttribute('enterkeyhint')=='go','Anmeldung: enterkeyhint gesetzt');

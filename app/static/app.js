@@ -23,6 +23,7 @@ A.tab=d=>{S.tab=d.v;S.pet=null;S.np=null;S.more='';S.sh=null;window.scrollTo(0,0
 A.lang=()=>{const ks=Object.keys((window.I18N||{}).languages||{de:1});setLang(ks[(ks.indexOf(LANG)+1)%ks.length])};
 
 const syncBadge=()=>SYNCING?'<span class="syncb ok">Synchronisiere …</span>':(OFFLINE||PENDING)?`<button class="syncb ${OFFLINE?'bad':'ok'}" data-a="syncnow">${OFFLINE?'Offline':'Sync'}${PENDING?' · '+PENDING+' ausstehend':''}</button>`:'';
+let LASTVK='';
 function render(){
   if(!ME)return;
   if(S.tab=='hist'&&!histOn())S.tab='today';
@@ -30,7 +31,8 @@ function render(){
   $('#top').innerHTML=`<div class="topbar"><div class="brand">${S.tab=='today'?`<span class="logo">${ico('paw',18)}</span><b>${esc(window.APP_NAME||'')}</b>`:`<b>${SUBTITLE[S.tab]}</b>`}</div><div class="row nowrap">${syncBadge()}${iconBtn('togtheme','theme','Hell/Dunkel wechseln')}<button class="ib txt" data-a="lang" aria-label="Sprache">${LANG.toUpperCase()}</button></div></div>`;
   const a=$('#app');
   a.style.setProperty('--catimg',S.tab=='today'?heroArt():'none');
-  a.className=(S.tab=='today'&&heroArt()=='none'?'nocat ':'')+'view';
+  const vk=[S.tab,S.pet,S.pt,S.more,S.hist,S.ck,!!S.np].join('|'),anim=vk!==LASTVK;LASTVK=vk;   // Einblenden nur beim Ansichtswechsel, nicht bei jeder Auswahl
+  a.className=(S.tab=='today'&&heroArt()=='none'?'nocat ':'')+'view'+(anim?' anim':'');
   a.innerHTML={today:vToday,hist:vHist,pets:vPets,more:vMore}[S.tab]();
   const canAdd=menuTiles().length>0&&CATS.length>=0;
   $('#nav').innerHTML=`<div class="navi">${tabs.map(t=>t=='fab'?(canAdd?`<button class="fab" data-a="addmenu" aria-label="Aktionen">${ico('plus',28)}<span>Aktionen</span></button>`:'<span class="fabgap"></span>'):`<button class="${S.tab==t[0]?'on':''}" data-a="tab" data-v="${t[0]}" aria-label="${t[1]}">${ico(t[2],22)}<span>${t[1]}</span></button>`).join('')}</div>`;
@@ -112,7 +114,7 @@ function showLogin(setup){let el=$('#login');if(!el){document.body.insertAdjacen
   <input type="text" id="lu" placeholder="Benutzername" autocomplete="username" enterkeyhint="next"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}" enterkeyhint="go"><div id="le" class="warnbox" hidden></div><button class="btn primary block" id="lb" style="margin-top:12px">${setup?'Konto anlegen':'Anmelden'}</button></div>`;
   const go=async()=>{const r=await BACKEND.raw('POST',setup?'/api/setup-admin':'/api/login',{json:{username:$('#lu').value,password:$('#lp').value}});
     if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}const x=$('#le');x.hidden=false;x.textContent=d;return}el.remove();await initApp()};
-  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};$('#lu').focus()}
+  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};['#lu','#lp'].forEach(q=>$(q).addEventListener('focus',e=>setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),350)));$('#lu').focus()}
 function showOffline(){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
   el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">Keine Verbindung</h2><p class="muted">Beim ersten Start wird eine Verbindung zum Server benötigt. Danach funktioniert die App auch offline.</p><button class="btn primary block" onclick="location.reload()">Erneut versuchen</button></div>`}
 function registerSW(){if(SECURE&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{})}

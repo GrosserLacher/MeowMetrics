@@ -10,17 +10,16 @@ const moreItems=()=>[
   ['catalog','Katalog','Hersteller, Sorten, Präparate, Kategorien, Bewertung','book',feedOn()||ft('vomit')],
   ['vets','Tierarztpraxen','Adressbuch für Berichte und Tier-Akte','steth',ft('medical')||ft('report')],
   ['push','Erinnerungen','Push-Benachrichtigungen','bell',ft('push')],
-  ['sync','Synchronisation','Verbindung und Offline-Einträge','repeat',true],
   ['features','Funktionen','Funktionen ein- und ausschalten','toggle',true],
   ['look','Darstellung','Design, Sprache, Header-Tier, Eingabe','palette',true],
-  ['backup','Daten & Backup','CSV-Export und Datenbank-Sicherung','db',true],
+  ['backup','Daten & Backup','Sicherung, Export und Synchronisation','db',true],
   ['account','Konto & Benutzer','Anmeldung und weitere Benutzer','user',true]].filter(x=>x[4]);
-A.mopen=d=>{S.more=d.v;if(d.v=='account')loadUsers();if(d.v=='sync')refreshPending().then(render)};A.mback=()=>{S.more=''};
+A.mopen=d=>{S.more=d.v;if(d.v=='account')loadUsers();if(d.v=='backup')refreshPending().then(render)};A.mback=()=>{S.more=''};
 const MT={sync:'Synchronisation',catalog:'Katalog',vets:'Tierarztpraxen',push:'Erinnerungen',features:'Funktionen',look:'Darstellung',backup:'Daten & Backup',account:'Konto & Benutzer'};
 function vMore(){
   if(!S.more||!moreItems().some(x=>x[0]==S.more))S.more='';
   if(!S.more)return`<div class="rows list">${moreItems().map(([k,t,d,i])=>`<button class="li link big" data-a="mopen" data-v="${k}"><span class="ti">${ico(i,20)}</span><span class="grow"><b>${t}</b><small class="muted">${d}</small></span>${ico('chev',18)}</button>`).join('')}</div><p class="muted fine center">${esc(window.APP_NAME||'')}</p>${SECURE?'':`<p class="muted fine center">${ico('lock',12)} http-Verbindung: Offline-Start, Erinnerungen, Teilen und Zwischenablage funktionieren nur über https.</p>`}`;
-  const body={sync:vSync,catalog:vCatalog,vets:vVets,push:pushCard,features:vFeatures,look:vLook,backup:vBackup,account:vAccount}[S.more]();
+  const body={catalog:vCatalog,vets:vVets,push:pushCard,features:vFeatures,look:vLook,backup:vBackup,account:vAccount}[S.more]();
   return`<button class="back" data-a="mback">${ico('back',18)} Mehr</button><h2 class="ph">${MT[S.more]}</h2>${body}`}
 
 /* ---------- Katalog ---------- */
@@ -131,7 +130,7 @@ Object.assign(E,{font:t=>{PREFS.ui[t.dataset.k]=t.value;applyTheme();savePrefs()
 
 /* ---------- Backup & Konto ---------- */
 function vBackup(){return card('Datensicherung',`<p class="muted">Lädt eine vollständige Sicherung der Datenbank (.db) herunter: Tiere, Einträge, Gesundheitsdaten, Einstellungen und Benutzerkonten. Hochgeladene Fotos liegen im Ordner data/uploads und werden separat gesichert.</p>${ME&&ME.is_admin?`<button class="btn primary block" data-a="dbdump">${ico('download',18)} Datenbank sichern</button>`:'<p class="muted">Die Datensicherung ist nur für Administratoren verfügbar.</p>'}`)+
-  card('Export',`<p class="muted">Alle Fütterungen als CSV (Semikolon-getrennt, direkt in Excel nutzbar).</p><button class="btn ghost block" data-a="expCsv">${ico('download',18)} CSV exportieren</button>`)}
+  card('Export',`<p class="muted">Alle Fütterungen als CSV (Semikolon-getrennt, direkt in Excel nutzbar).</p><button class="btn ghost block" data-a="expCsv">${ico('download',18)} CSV exportieren</button>`)+vSync()}
 A.dbdump=()=>{location.href=BACKEND.url('/api/export/db');return false};A.expCsv=()=>{location.href=BACKEND.url('/api/export/csv?lang='+LANG);return false};
 let USERS=[];
 async function loadUsers(){if(!ME||!ME.is_admin)return;try{USERS=await API('GET','/api/users')}catch(e){}render()}
@@ -178,6 +177,6 @@ function pushCard(){let b;
 /* ---------- Synchronisation ---------- */
 const httpsNote=()=>SECURE?'':`<p class="muted fine">${ico('lock',12)} Du nutzt eine unverschlüsselte Verbindung (http). Der Offline-Start der App, Erinnerungen, App-Installation, Teilen und das Kopieren in die Zwischenablage funktionieren nur über https. Ein Eintrag, den du bei geöffneter App ohne Verbindung machst, wird trotzdem gespeichert und später gesendet.</p>`;
 function vSync(){
-  let o=card('Verbindung',`<div class="kvr"><span class="muted">Status</span><b>${OFFLINE?'Offline':'Online'}</b></div><div class="kvr"><span class="muted">Ausstehende Einträge</span><b>${PENDING}</b></div><div class="kvr"><span class="muted">Letzte Synchronisation</span><b>${LASTSYNC?fmt(LASTSYNC):'–'}</b></div><button class="btn primary block" style="margin-top:12px" data-a="syncnow" ${SYNCING?'disabled':''}>${ico('repeat',18)} Jetzt synchronisieren</button><p class="muted fine">Neue Einträge (Füttern, Präparat, Vorfall, Messwert, Behandlungs-Eintrag) werden ohne Verbindung auf dem Gerät gespeichert und automatisch gesendet, sobald der Server wieder erreichbar ist. Bearbeiten, Löschen und Stammdaten benötigen eine Verbindung.</p>${httpsNote()}`);
+  let o=card('Synchronisation',`<div class="kvr"><span class="muted">Status</span><b>${OFFLINE?'Offline':'Online'}</b></div><div class="kvr"><span class="muted">Ausstehende Einträge</span><b>${PENDING}</b></div><div class="kvr"><span class="muted">Letzte Synchronisation</span><b>${LASTSYNC?fmt(LASTSYNC):'–'}</b></div><button class="btn primary block" style="margin-top:12px" data-a="syncnow" ${SYNCING?'disabled':''}>${ico('repeat',18)} Jetzt synchronisieren</button><p class="muted fine">Neue Einträge (Füttern, Präparat, Vorfall, Messwert, Behandlungs-Eintrag) werden ohne Verbindung auf dem Gerät gespeichert und automatisch gesendet, sobald der Server wieder erreichbar ist. Bearbeiten, Löschen und Stammdaten benötigen eine Verbindung.</p>${httpsNote()}`);
   if(OPS.length)o+=card('Wartet auf Synchronisation',`<div class="rows">${OPS.map(op=>`<div class="li"><span class="grow"><b>${esc(opLabel(op))}</b><small class="muted">${fmt(op.ts)}</small></span><button class="ib dng" data-a="opdel" data-id="${op.id}" aria-label="Verwerfen">${ico('trash',16)}</button></div>`).join('')}</div>`);
   return o}

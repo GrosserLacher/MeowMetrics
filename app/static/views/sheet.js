@@ -32,9 +32,9 @@ A.m_tlog=d=>{S.sh=tlogInit(d&&d.tid?ID(d.tid):null,d&&d.type)};
 A.shclose=()=>{if(S.sh&&S.sh.pv)S.sh.pv.forEach(u=>URL.revokeObjectURL(u));S.sh=null};
 function renderSheet(){const el=$('#sheet'),s=S.sh;
   if(!s){el.className='';el.innerHTML='';document.body.classList.remove('lock');shT=null;return}
-  const old=el.querySelector('.body'),st=old&&shT==s.t?old.scrollTop:0,[title,body,foot]=SH[s.t](s);
+  const old=el.querySelector('.body'),st=old&&shT==s.t?old.scrollTop:0,fresh=!(el.className=='on'&&shT==s.t),[title,body,foot]=SH[s.t](s);
   el.className='on';document.body.classList.add('lock');
-  el.innerHTML=`<div class="backdrop" data-a="shclose"></div><div class="panel" role="dialog" aria-modal="true"><div class="head"><h3>${title}</h3>${iconBtn('shclose','x','Schließen')}</div><div class="body">${body}</div>${foot?`<div class="foot">${foot}</div>`:''}</div>`;
+  el.innerHTML=`<div class="backdrop" data-a="shclose"></div><div class="panel${fresh?' fresh':''}" role="dialog" aria-modal="true"><div class="head"><h3>${title}</h3>${iconBtn('shclose','x','Schließen')}</div><div class="body">${body}</div>${foot?`<div class="foot">${foot}</div>`:''}</div>`;
   const nb=el.querySelector('.body');if(nb)nb.scrollTop=st;shT=s.t}
 
 /* ---------- Menü ---------- */
