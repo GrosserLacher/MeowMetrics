@@ -39,6 +39,7 @@ try:
     from app import audit
     from app import extras as extras_m, meds as meds_m, findings as findings_m, health as health_m, cats as cats_m, features as features_m
     from app.push import router as push_router, start_scheduler
+    from app.sync import router as sync_router, migrate_sync
     from app.report import router as report_router, REPORT_CSS, FONT_LINK, HERO_CAT
 except ImportError:  # Start ohne Paketstruktur (z. B. "uvicorn main:app")
     from extras import (router as extras_router, migrate, vomit_keys, relevant_keys,
@@ -52,6 +53,7 @@ except ImportError:  # Start ohne Paketstruktur (z. B. "uvicorn main:app")
     import audit
     import extras as extras_m, meds as meds_m, findings as findings_m, health as health_m, cats as cats_m, features as features_m
     from push import router as push_router, start_scheduler
+    from sync import router as sync_router, migrate_sync
     from report import router as report_router, REPORT_CSS, FONT_LINK, HERO_CAT
 
 app = FastAPI(title=APP_NAME)
@@ -188,6 +190,8 @@ app.include_router(vets_router)
 app.include_router(features_router)   # Funktionen ein-/ausschalten + Erst-Auswahl (pro Benutzer)
 migrate_features()
 audit.migrate()                 # Spalten created_by / created_by_name (wer hat's eingetragen)
+migrate_sync()                  # Sync-Fundament: uid, Feld-Zeitstempel, Trigger (muss nach allen anderen Migrationen laufen)
+app.include_router(sync_router)  # /api/sync, /api/media
 
 
 def _enable_wal():
@@ -274,8 +278,18 @@ def _th(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def current_user(request: Request):
+def _req_token(request: Request) -> Optional[str]:
+    """Sitzungs-Token aus dem Cookie (PWA) oder aus dem Header "Authorization: Bearer ..." (Android-App)."""
     token = request.cookies.get(COOKIE)
+    if not token:
+        auth = request.headers.get("authorization") or ""
+        if auth[:7].lower() == "bearer ":
+            token = auth[7:].strip() or None
+    return token
+
+
+def current_user(request: Request):
+    token = _req_token(request)
     if not token:
         return None
     conn = get_db()
@@ -320,6 +334,7 @@ async def require_login(request: Request, call_next):
 class Credentials(BaseModel):
     username: str
     password: str
+    token: bool = False   # True: Sitzungs-Token zusätzlich in der Antwort liefern (für die Android-App)
 
 
 def _new_session(user_id: int) -> str:
@@ -343,7 +358,7 @@ def auth_status(request: Request, response: Response):
     n = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
     conn.close()
     user = current_user(request)
-    if user:  # Cookie bei jedem App-Start verlängern
+    if user and request.cookies.get(COOKIE):  # Cookie bei jedem App-Start verlängern
         _set_cookie(response, request, request.cookies.get(COOKIE))
     return {"needs_setup": n == 0, "user": user}
 
@@ -374,13 +389,14 @@ def login(data: Credentials, request: Request, response: Response):
     if not row or not check_pw(data.password, row["pw_hash"]):
         time.sleep(0.6)  # bremst Durchprobieren; zusätzlich Rate-Limit im Reverse Proxy empfohlen
         raise HTTPException(status_code=401, detail="Name oder Passwort falsch")
-    _set_cookie(response, request, _new_session(row["id"]))
-    return {"status": "ok"}
+    new_token = _new_session(row["id"])
+    _set_cookie(response, request, new_token)
+    return {"status": "ok", "token": new_token} if data.token else {"status": "ok"}
 
 
 @app.post("/api/logout")
 def logout(request: Request, response: Response):
-    token = request.cookies.get(COOKIE)
+    token = _req_token(request)
     if token:
         conn = get_db()
         conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_th(token),))
@@ -461,7 +477,7 @@ def update_user(uid: int, data: UserUpdate, request: Request):
             cols = ", ".join(f"{k} = ?" for k in upd)   # Spaltennamen stammen aus dem Code, nicht vom Client
             conn.execute(f"UPDATE users SET {cols} WHERE id = ?", (*upd.values(), uid))
             if "pw_hash" in upd:
-                keep = _th(request.cookies.get(COOKIE) or "") if uid == request.state.user["id"] else ""
+                keep = _th(_req_token(request) or "") if uid == request.state.user["id"] else ""
                 conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", (uid, keep))
             conn.commit()
     except sqlite3.IntegrityError:
@@ -514,7 +530,7 @@ def change_own_password(data: PasswordChange, request: Request):
         time.sleep(0.6)
         raise HTTPException(status_code=400, detail="Aktuelles Passwort ist falsch")
     conn.execute("UPDATE users SET pw_hash = ? WHERE id = ?", (hash_pw(data.new), uid))
-    conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", (uid, _th(request.cookies.get(COOKIE) or "")))
+    conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", (uid, _th(_req_token(request) or "")))
     conn.commit()
     conn.close()
     return {"status": "ok"}
@@ -860,14 +876,39 @@ def create_feeding(data: FeedingBatchPayload):
 
 @app.put("/api/feedings/batch/{batch_id}")
 def update_feeding_batch(batch_id: str, data: FeedingBatchPayload):
+    """Bearbeitet eine Runde. Vorhandene Zeilen werden aktualisiert (stabile Kennung für den Sync), entfernte Tiere
+    gelöscht, neue Tiere ergänzt. Der ursprüngliche Ersteller bleibt erhalten."""
     if not data.cat_ratings:
         raise HTTPException(status_code=400, detail="Mindestens ein Tier auswählen")
     conn = get_db()
     try:
         c = conn.cursor()
-        old = c.execute("SELECT created_by, created_by_name FROM feedings WHERE batch_id = ? LIMIT 1", (batch_id,)).fetchone()
-        c.execute("DELETE FROM feedings WHERE batch_id = ?", (batch_id,))
-        _write_feedings(c, batch_id, data, (old["created_by"], old["created_by_name"]) if old else None)   # ursprünglicher Ersteller bleibt
+        man = c.execute("SELECT name FROM manufacturers WHERE id = ?", (data.manufacturer_id,)).fetchone()
+        food = c.execute("SELECT name FROM foods WHERE id = ?", (data.food_id,)).fetchone()
+        if not man or not food:
+            raise HTTPException(status_code=400, detail="Hersteller oder Sorte ungültig")
+        top = max_score()
+        if any(not 1 <= r <= top for r in data.cat_ratings.values()):
+            raise HTTPException(status_code=400, detail=f"Bewertung muss zwischen 1 und {top} liegen")
+        old = c.execute("SELECT id, cat_name, created_by, created_by_name FROM feedings WHERE batch_id = ? ORDER BY id",
+                        (batch_id,)).fetchall()
+        existing = {r["cat_name"]: r["id"] for r in old}
+        ts = data.timestamp or datetime.now().strftime("%Y-%m-%dT%H:%M")
+        kind = data.kind if data.kind in KINDS else "food"
+        for cat_name, rating in data.cat_ratings.items():
+            if cat_name in existing:
+                c.execute("""UPDATE feedings SET manufacturer_id = ?, food_id = ?, manufacturer_name = ?, food_name = ?,
+                             rating = ?, notes = ?, timestamp = ?, kind = ? WHERE id = ?""",
+                          (data.manufacturer_id, data.food_id, man["name"], food["name"], rating, data.notes, ts, kind,
+                           existing[cat_name]))
+        for cat_name, rid in existing.items():
+            if cat_name not in data.cat_ratings:
+                c.execute("DELETE FROM feedings WHERE id = ?", (rid,))
+        added = {n: r for n, r in data.cat_ratings.items() if n not in existing}
+        if added:
+            sub = FeedingBatchPayload(cat_ratings=added, manufacturer_id=data.manufacturer_id, food_id=data.food_id,
+                                      notes=data.notes, timestamp=ts, kind=kind)
+            _write_feedings(c, batch_id, sub, (old[0]["created_by"], old[0]["created_by_name"]) if old else None)
         conn.commit()
     finally:
         conn.close()
@@ -1289,3 +1330,11 @@ def serve_index():
     cfg = "<script>window.APP_NAME=" + json.dumps(APP_NAME).replace("</", "<\\/") + ";</script>"
     page = page.replace("<!--APP_CONFIG-->", cfg).replace("{{APP_NAME}}", html.escape(APP_NAME))
     return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
+
+
+# CORS ist standardmäßig aus. Für die Android-App mit gebündeltem Frontend: CORS_ORIGINS=https://localhost
+_cors = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+if _cors:
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(CORSMiddleware, allow_origins=_cors, allow_credentials=True,
+                       allow_methods=["*"], allow_headers=["*"], expose_headers=["X-Replayed"])

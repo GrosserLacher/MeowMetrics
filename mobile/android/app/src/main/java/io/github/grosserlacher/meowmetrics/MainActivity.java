@@ -14,6 +14,7 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
@@ -27,11 +28,19 @@ import com.getcapacitor.BridgeWebViewClient;
 /**
  * Die Start-Seite der App (lokal, https://localhost) öffnet den vom Benutzer eingegebenen Server direkt im WebView.
  *
+<<<<<<< HEAD
+ * Capacitor würde dafür allowNavigation brauchen und lädt dann jede HTML-Seite des Servers über einen eigenen
+ * Java-Proxy (HttpURLConnection). Das ist fehleranfällig. Stattdessen entscheidet hier eine einfache Regel:
+ *  - https-Links von der Start-Seite aus, innerhalb desselben Servers und zurück zur Start-Seite der App
+ *    ("Server wechseln") bleiben im WebView,
+ *  - alles andere (andere Hosts, tel:, mailto:, Karten-Links) übergibt die App an Android (Standard von Capacitor).
+=======
  * Navigation: Capacitor würde dafür allowNavigation brauchen und lädt dann jede HTML-Seite des Servers über einen
  * eigenen Java-Proxy. Das ist fehleranfällig. Stattdessen gilt hier eine einfache Regel:
  *  - https-Links von der Start-Seite aus, innerhalb desselben Servers und zurück zur Start-Seite ("Server wechseln")
  *    bleiben im WebView,
  *  - alles andere (andere Hosts, tel:, mailto:, Karten-Links) übergibt die App an Android.
+>>>>>>> main
  *
  * Darstellung: Die App zeichnet randlos unter Status- und Navigationsleiste (beide transparent). Die Höhe der Leisten
  * wird der Seite als CSS-Variablen --sat und --sab übergeben, die Symbolfarbe stellt die Seite über MMNative.setBars ein.
