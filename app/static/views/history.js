@@ -97,13 +97,13 @@ function xoRender(){const el=$('#xo');if(!XO){el.className='';el.innerHTML='';re
     <div style="display:grid;gap:8px;margin-top:12px">${em.length?`<button class="btn primary block" data-a="xomailto">${ico('mail',18)} Mail-App mit Empfänger öffnen</button><button class="btn ghost block" data-a="xocopy">Adresse kopieren</button>`:''}<button class="btn ${em.length?'ghost':'primary'} block" data-a="xosharenow">${ico('download',18)} PDF teilen …</button><button class="btn ghost block" data-a="xoclose">Schließen</button></div>`}
   else inner=`<h3>Bericht erstellen</h3><p class="muted">Wie möchtest du den Bericht verwenden?</p>${opt('xopdf','download','Nur PDF speichern','Lädt den Bericht als PDF-Datei herunter.')}${opt('xoprint','printer','Direkt drucken','Öffnet den Druckdialog deines Browsers.')}${opt('xomail','mail','Per E-Mail versenden','Mail-App mit der Praxis als Empfänger oder PDF teilen.')}<button class="btn ghost block" data-a="xoclose">Abbrechen</button>`;
   el.innerHTML=`<div class="box">${inner}</div>`}
-async function xoFetch(){const r=await fetch('/api/export/report.pdf?'+XO.q,{credentials:'same-origin'});if(!r.ok){let m='PDF konnte nicht erstellt werden';try{const j=await r.json();if(j.detail)m=j.detail}catch(_){}throw new Error(m)}return r.blob()}
+async function xoFetch(){const r=await BACKEND.raw('GET','/api/export/report.pdf?'+XO.q);if(!r.ok){let m='PDF konnte nicht erstellt werden';try{const j=await r.json();if(j.detail)m=j.detail}catch(_){}throw new Error(m)}return r.blob()}
 function xoDownload(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),6e4)}
 async function xoReady(em){XO.busy=1;xoRender();try{const blob=await xoFetch();XO.pending={blob,name:xoName(),em};XO.step='ready'}catch(e){XO.step='choose';toast(e.message)}XO.busy=0;xoRender()}
 Object.assign(A,{
   xoclose:()=>{XO=null;xoRender();return false},xoback:()=>{if(XO){XO.step='choose';xoRender()}return false},
   xopdf:async()=>{XO.busy=1;xoRender();try{xoDownload(await xoFetch(),xoName());XO=null}catch(e){XO.busy=0;toast(e.message)}xoRender();return false},
-  xoprint:()=>{window.open('/api/export/report?'+XO.q+'&autoprint=1','_blank');XO=null;xoRender();return false},
+  xoprint:()=>{window.open(BACKEND.url('/api/export/report?'+XO.q+'&autoprint=1'),'_blank');XO=null;xoRender();return false},
   xomail:()=>{XO.cl=xoClinics();if(XO.cl.length>1){XO.step='vet';XO.sel=Object.fromEntries(XO.cl.map(x=>[x.v.id,1]));xoRender()}else xoReady(XO.cl.map(x=>x.v.email));return false},
   xovetgo:()=>{const em=XO.cl.filter(x=>XO.sel[x.v.id]).map(x=>x.v.email);if(!em.length){toast('Bitte mindestens eine Praxis wählen');return false}xoReady(em);return false},
   xocopy:async()=>{const em=XO.pending.em.join(', ');try{await navigator.clipboard.writeText(em);toast('Adresse kopiert')}catch(e){toast(em)}return false},

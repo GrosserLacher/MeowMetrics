@@ -5,7 +5,7 @@ const vacState=v=>{const today=new Date(nowIso().slice(0,10)+'T00:00');
   if(v.planned_date&&!v.date_given){const d=Math.round((new Date(v.planned_date+'T00:00')-today)/864e5);return{d,c:d<0?'bad':'ok',t:d<0?'überfällig':'geplant'}}
   if(v.no_expiry)return{d:null,c:'good',t:'kein Ablauf'};
   if(!v.valid_until)return null;const d=Math.round((new Date(v.valid_until+'T00:00')-today)/864e5);return d<0?{d,c:'bad',t:'abgelaufen'}:d<=30?{d,c:'ok',t:'läuft bald ab'}:{d,c:'good',t:'gültig'}};
-A.openpet=d=>{S.tab='pets';S.pet=+d.id;S.pt='profile';S.np=null};
+A.openpet=d=>{S.tab='pets';S.pet=ID(d.id);S.pt='profile';S.np=null};
 A.newpet=()=>{S.sh=null;S.tab='pets';S.pet=null;S.np={name:'',bd:''}};
 A.petback=()=>{S.pet=null;S.np=null};
 A.ptab=d=>{S.pt=d.v};
@@ -77,7 +77,7 @@ function pVac(c){const all=VAC.filter(v=>v.cat_id==c.id),vs=all.filter(v=>!vplan
 A.vadd=T(async d=>{const V=S.vac;let n=V.t=='__new'?(V.nt||'').trim():V.t;if(!n){toast('Bitte die Impfart wählen oder eingeben');return}
   if(V.plan&&!V.pd){toast('Bitte ein Datum für die Planung wählen');return}
   if(V.t=='__new')await API('POST','/api/health/vaccine-types',{name:n});
-  await API('POST','/api/health/vaccinations',{cat_id:+d.c,vaccine_name:n,date_given:V.plan?null:(V.g||null),valid_until:V.plan?null:durUntil(V.g,V.dur,V.u),no_expiry:V.dur=='none'&&!V.plan,planned_date:V.plan?V.pd:null});
+  await API('POST','/api/health/vaccinations',{cat_id:ID(d.c),vaccine_name:n,date_given:V.plan?null:(V.g||null),valid_until:V.plan?null:durUntil(V.g,V.dur,V.u),no_expiry:V.dur=='none'&&!V.plan,planned_date:V.plan?V.pd:null});
   S.vac={t:'',nt:'',g:'',u:'',dur:'1y',plan:false,pd:''};return()=>toast(V.plan?'Impfung geplant':'Impfung eingetragen')});
 A.vdone=d=>{const v=VAC.find(x=>x.id==d.id);if(!v)return;const c=CATS.find(x=>x.id==v.cat_id)||{};S.sh={t:'vdone',id:v.id,name:v.vaccine_name,cat:c.name||'',g:nowIso().slice(0,10),u:'',dur:'1y'}};
 A.vdel=d=>{const v=VAC.find(x=>x.id==d.id)||{};ask('Impfung löschen?',`„${v.vaccine_name||''}“ wird aus dem Impfpass entfernt.`,T(async()=>{await API('DELETE','/api/health/vaccinations/'+d.id)}));return false};
@@ -119,8 +119,8 @@ function pVal(c){
   o+=card('Messfelder',`<div class="chips">${flds.map(x=>`<span class="chip static">${esc(x.name)}${x.unit?' ('+esc(x.unit)+')':''}${x.builtin?'':`<button class="x" data-a="hfdel" data-id="${x.id}" aria-label="Entfernen">${ico('x',12)}</button>`}</span>`).join('')}</div>
   <div class="grid2" style="margin-top:12px">${field('Neues Feld',inp('nfld.n',{ph:'Name, z. B. Puls'}))}${field('Einheit',inp('nfld.u',{ph:'Einheit'}))}</div><button class="btn ghost block" data-a="hfadd">Feld hinzufügen</button>`);
   return o}
-A.hvf=d=>{S.hv.f=+d.v};A.hvr=d=>{S.hv.r=+d.v};
-A.valadd=d=>{const c=CATS.find(x=>x.id==d.c);S.sh={...measInit(),cat:c.name,f:+d.f}};
+A.hvf=d=>{S.hv.f=ID(d.v)};A.hvr=d=>{S.hv.r=+d.v};
+A.valadd=d=>{const c=CATS.find(x=>x.id==d.c);S.sh={...measInit(),cat:c.name,f:ID(d.f)}};
 A.hvdel=d=>{ask('Wert löschen?','Dieser Messwert wird endgültig gelöscht.',T(async()=>{await API('DELETE','/api/health/values/'+d.id)}));return false};
 A.hfadd=T(async()=>{const n=(S.nfld.n||'').trim();if(!n)return;await API('POST','/api/health/fields',{name:n,unit:S.nfld.u||''});S.nfld={n:'',u:''};return()=>toast('Feld angelegt')});
 A.hfdel=d=>{const f=HF.fields.find(x=>x.id==d.id)||{};ask('Feld löschen?',`„${f.name}“ wird ausgeblendet. Bereits erfasste Werte bleiben gespeichert.`,T(async()=>{await API('DELETE','/api/health/fields/'+d.id)}));return false};
@@ -136,7 +136,7 @@ function pTreat(c){
   return o}
 A.tfopen=()=>{S.tf={title:'',start:nowIso(),int:'4',cint:'',notes:''}};A.tfclose=()=>{S.tf=null};A.tfnow=()=>{if(S.tf)S.tf.start=nowIso()};
 A.tfsave=T(async d=>{const f=S.tf;if(!f)return;const title=(f.title||'').trim();if(!title){toast('Bitte eine Bezeichnung eingeben');return}const iv=f.int=='custom'?parseInt(f.cint):(f.int?+f.int:null);if(f.int=='custom'&&!(iv>=1&&iv<=168)){toast('Intervall: 1 bis 168 Stunden');return}
-  await API('POST','/api/health/treatments',{cat_id:+d.c,title,start_timestamp:f.start||null,interval_hours:iv||null,notes:f.notes});S.tf=null;return()=>toast('Behandlung gestartet')});
+  await API('POST','/api/health/treatments',{cat_id:ID(d.c),title,start_timestamp:f.start||null,interval_hours:iv||null,notes:f.notes});S.tf=null;return()=>toast('Behandlung gestartet')});
 A.trlogs=d=>{S.tx[d.id]=!S.tx[d.id]};
 A.trdone=d=>{const t=TR.find(x=>x.id==d.id)||{};ask('Behandlung abschließen?',`„${t.title||''}“ wird archiviert und bleibt für den Tierarztbericht erhalten.`,T(async()=>{await API('PUT','/api/health/treatments/'+d.id,{is_active:false});return()=>toast('Behandlung abgeschlossen und archiviert')}),'Abschließen',false);return false};
 A.trreact=T(async d=>{await API('PUT','/api/health/treatments/'+d.id,{is_active:true})});

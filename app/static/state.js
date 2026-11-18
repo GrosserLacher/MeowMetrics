@@ -8,6 +8,8 @@ const S={tab:'today',hist:'list',more:'',pet:null,pt:'profile',sh:null,dlg:null,
   vac:{t:'',nt:'',g:'',u:'',dur:'1y',plan:false,pd:''},nfld:{n:'',u:''},tf:null,tx:{},em:null,np:null,ck:'food',co:{},nv:{},pw:{cur:'',n1:'',n2:''},rp:null};
 
 /* ---------- Hilfsfunktionen ---------- */
+/* IDs sind für die Oberfläche undurchsichtig: Zahlen bleiben Zahlen, alles andere (z. B. UUIDs) bleibt Text */
+const ID=v=>/^\d+$/.test(String(v))?+v:v;
 const ft=k=>FT[k]!==false;
 const feedOn=()=>ft('food')||ft('snack')||ft('drink')||ft('meds'),incOn=()=>ft('vomit')||ft('stool')||ft('finding'),healthOn=()=>ft('medical')||ft('vaccination')||ft('values')||ft('treatment');
 const NR=()=>RL.length||3,rc=v=>v>NR()*2/3?3:v>NR()/3?2:1;
@@ -62,14 +64,14 @@ function applyHide(){
 async function load(){
   let d;try{d=await API('GET','/api/bootstrap');if(HAVE_IDB)IDB.set('bootstrap',d).catch(()=>{})}catch(e){if(!e.offline||!HAVE_IDB)throw e;d=await IDB.get('bootstrap');if(!d)throw e}
   PRF={};(d.profiles||[]).forEach(p=>{PRF[p.id]=p});
-  CATS=d.animals.map((a,i)=>({id:a.id,name:a.name,sp:a.species||'cat',i,photo:(PRF[a.id]||{}).photo||'',life:(PRF[a.id]||{}).lifestyle||''}));
+  CATS=d.animals.map((a,i)=>({id:a.id,name:a.name,sp:a.species||'cat',i,photo:MU((PRF[a.id]||{}).photo||''),life:(PRF[a.id]||{}).lifestyle||''}));
   VTYPES=d.vaccine_types||[];
   const mp=l=>l.map(m=>({id:m.id,name:m.name,foods:m.foods}));
   CAT={food:mp(d.food),snack:mp(d.snack),drink:mp(d.drink)};
   const gm={};
   d.feedings.forEach(f=>{const k=f.batch_id||'s'+f.id;(gm[k]=gm[k]||{id:f.batch_id||f.id,ts:new Date(f.timestamp).getTime(),kind:f.kind||'food',mid:f.manufacturer_id,fid:f.food_id,man:f.manufacturer_name,food:f.food_name,cats:{},note:f.notes||'',by:f.created_by_name||''}).cats[f.cat_name]=f.rating});
   B0=Object.values(gm);
-  V0=d.vomits.map(x=>({id:x.id,ts:new Date(x.timestamp).getTime(),cat:x.cat_name,type:x.vomit_type||'food',note:x.notes||'',by:x.created_by_name||'',img:x.image_path}));
+  V0=d.vomits.map(x=>({id:x.id,ts:new Date(x.timestamp).getTime(),cat:x.cat_name,type:x.vomit_type||'food',note:x.notes||'',by:x.created_by_name||'',img:MU(x.image_path)}));
   RL=[...d.rating_levels].sort((a,b)=>b.score-a.score);
   VT=d.vomit_types.map(x=>({key:x.key,label:x.label,emoji:x.emoji||'',relevant:!!x.relevant,hidden:!!x.hidden}));
   DD=(d.default_drink||{}).name||'Wasser';
@@ -77,7 +79,7 @@ async function load(){
   const g2={};
   d.med_logs.forEach(x=>{(g2[x.batch_id]=g2[x.batch_id]||{id:x.batch_id,ts:new Date(x.timestamp).getTime(),med:x.med_name,dose:x.dose||'',wf:!!x.with_food,note:x.notes||'',by:x.created_by_name||'',cats:[]}).cats.push(x.cat_name)});
   MG0=Object.values(g2);
-  FD0=d.findings.map(x=>({id:x.id,cat:x.cat_name,kind:x.kind,bristol:x.bristol,flags:x.details||[],loc:x.location||'',ts:new Date(x.timestamp).getTime(),note:x.notes||'',by:x.created_by_name||'',imgs:x.images||[]}));
+  FD0=d.findings.map(x=>({id:x.id,cat:x.cat_name,kind:x.kind,bristol:x.bristol,flags:x.details||[],loc:x.location||'',ts:new Date(x.timestamp).getTime(),note:x.notes||'',by:x.created_by_name||'',imgs:(x.images||[]).map(MU)}));
   const fx=d.features||{};FT=fx.features||{};FT_DONE=!!fx.setup_done;MULTI=(fx.users||1)>1;
   HF=d.health_overview||{fields:[],birthdays:{}};HV=d.health_values||[];VAC=d.vaccinations||[];TR=d.treatments||[];VETS=d.vets||[];
   await applyPending();
