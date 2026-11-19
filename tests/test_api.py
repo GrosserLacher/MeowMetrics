@@ -129,3 +129,51 @@ def test_media(client):
     assert client.put("/api/media/..evil", content=PNG).status_code in (400, 404, 405)
     assert client.get("/api/media/fehlt.png").status_code == 404
     assert client.post("/api/media/missing", json={"names": ["a_1.png", "z.png"]}).json() == {"missing": ["z.png"]}
+
+
+# --- Android-App mit gebündelter Oberfläche: Foto-Schlüssel und CORS -------------------------------------
+
+def test_media_key_gives_read_access_to_photos(client):
+    client.put("/api/media/key_test.png", content=PNG)
+    anon = TestClient(main.app)
+    assert anon.get("/uploads/key_test.png").status_code == 401
+    key = client.get("/api/auth/media-key").json()["key"]
+    assert len(key) >= 20 and client.get("/api/auth/media-key").json()["key"] == key   # stabil
+    assert anon.get(f"/uploads/key_test.png?k={key}").content == PNG
+    assert anon.get(f"/api/media/key_test.png?k={key}").content == PNG
+    assert anon.get("/uploads/key_test.png?k=falsch-falsch-falsch-falsch").status_code == 401
+    # der Schlüssel gilt nur für Fotos und nur lesend
+    assert anon.get(f"/api/cats?k={key}").status_code == 401
+    assert anon.put(f"/api/media/zzz.png?k={key}", content=PNG).status_code == 401
+    assert anon.get(f"/api/export/db?k={key}").status_code == 401
+    # Passwortänderung macht ihn ungültig
+    assert client.put("/api/me/password", json={"current": "geheim1234", "new": "neuespasswort99"}).status_code == 200
+    assert anon.get(f"/uploads/key_test.png?k={key}").status_code == 401
+    client.put("/api/me/password", json={"current": "neuespasswort99", "new": "geheim1234"})
+
+
+def test_cors_is_off_by_default_and_works_when_enabled(tmp_path):
+    import os
+    import subprocess
+    import sys
+    code = ("import app.main as m\nfrom fastapi.testclient import TestClient\nc = TestClient(m.app)\n"
+            "r = c.options('/api/login', headers={'Origin': 'https://localhost', 'Access-Control-Request-Method': 'POST',"
+            " 'Access-Control-Request-Headers': 'authorization,content-type'})\n"
+            "print(r.status_code, r.headers.get('access-control-allow-origin'), r.headers.get('access-control-allow-headers'))\n"
+            "r = c.get('/api/auth/status', headers={'Origin': 'https://localhost'})\n"
+            "print(r.status_code, r.headers.get('access-control-allow-origin'))\n")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def run(cors):
+        env = dict(os.environ, DATA_DIR=str(tmp_path / ("c" + str(bool(cors)))), PYTHONPATH=root)
+        os.makedirs(env["DATA_DIR"], exist_ok=True)
+        if cors:
+            env["CORS_ORIGINS"] = cors
+        return subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True, text=True, check=True).stdout.split("\n")
+    off = run("")
+    assert off[0].startswith("400") or "None" in off[0], off
+    assert off[1].endswith("None")
+    on = run("https://localhost")
+    assert on[0].startswith("200 https://localhost"), on
+    assert "authorization" in on[0].lower()
+    assert on[1] == "200 https://localhost", on

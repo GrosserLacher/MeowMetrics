@@ -251,6 +251,8 @@ def init_auth_tables():
     conn.execute("""CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
         pw_hash TEXT NOT NULL, is_admin INTEGER DEFAULT 0, prefs TEXT DEFAULT '{}')""")
+    if "media_key" not in {r["name"] for r in conn.execute("PRAGMA table_info(users)")}:
+        conn.execute("ALTER TABLE users ADD COLUMN media_key TEXT")   # Lesezugriff auf Fotos für die Android-App (per Adresse)
     conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
         token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created REAL, last_seen REAL)""")
     # Offline-Synchronisation: bereits verarbeitete Anfragen (Kennung vom Gerät), damit nichts doppelt gespeichert wird
@@ -304,11 +306,26 @@ def current_user(request: Request):
     return dict(row) if row else None
 
 
+def _user_by_media_key(key: Optional[str]):
+    """Benutzer zu einem Foto-Schlüssel (nur zum Lesen von Fotos; der Schlüssel erlaubt nichts anderes)."""
+    if not key or len(key) < 20 or len(key) > 100:
+        return None
+    conn = get_db()
+    rows = conn.execute("SELECT id, username, is_admin, media_key FROM users WHERE media_key IS NOT NULL").fetchall()
+    conn.close()
+    for r in rows:
+        if hmac.compare_digest(r["media_key"], key):
+            return {"id": r["id"], "username": r["username"], "is_admin": r["is_admin"]}
+    return None
+
+
 @app.middleware("http")
 async def require_login(request: Request, call_next):
     p = request.url.path
     if (p.startswith("/api/") or p.startswith("/uploads/")) and p not in OPEN_PATHS:
         user = current_user(request)
+        if not user and request.method == "GET" and (p.startswith("/uploads/") or p.startswith("/api/media/")):
+            user = _user_by_media_key(request.query_params.get("k"))   # <img> kann keinen Authorization-Header senden
         if not user:
             return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401)
         request.state.user = user
@@ -361,6 +378,19 @@ def auth_status(request: Request, response: Response):
     if user and request.cookies.get(COOKIE):  # Cookie bei jedem App-Start verlängern
         _set_cookie(response, request, request.cookies.get(COOKIE))
     return {"needs_setup": n == 0, "user": user}
+
+
+@app.get("/api/auth/media-key")
+def media_key(request: Request):
+    """Liefert (und erzeugt bei Bedarf) den Foto-Schlüssel des angemeldeten Benutzers."""
+    uid = request.state.user["id"]
+    conn = get_db()
+    row = conn.execute("SELECT media_key FROM users WHERE id = ?", (uid,)).fetchone()
+    key = row["media_key"] if row and row["media_key"] else secrets.token_urlsafe(24)
+    conn.execute("UPDATE users SET media_key = ? WHERE id = ?", (key, uid))
+    conn.commit()
+    conn.close()
+    return {"key": key}
 
 
 @app.post("/api/setup-admin")
@@ -477,6 +507,7 @@ def update_user(uid: int, data: UserUpdate, request: Request):
             cols = ", ".join(f"{k} = ?" for k in upd)   # Spaltennamen stammen aus dem Code, nicht vom Client
             conn.execute(f"UPDATE users SET {cols} WHERE id = ?", (*upd.values(), uid))
             if "pw_hash" in upd:
+                conn.execute("UPDATE users SET media_key = NULL WHERE id = ?", (uid,))
                 keep = _th(_req_token(request) or "") if uid == request.state.user["id"] else ""
                 conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", (uid, keep))
             conn.commit()
@@ -529,7 +560,7 @@ def change_own_password(data: PasswordChange, request: Request):
         conn.close()
         time.sleep(0.6)
         raise HTTPException(status_code=400, detail="Aktuelles Passwort ist falsch")
-    conn.execute("UPDATE users SET pw_hash = ? WHERE id = ?", (hash_pw(data.new), uid))
+    conn.execute("UPDATE users SET pw_hash = ?, media_key = NULL WHERE id = ?", (hash_pw(data.new), uid))
     conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", (uid, _th(_req_token(request) or "")))
     conn.commit()
     conn.close()

@@ -28,6 +28,7 @@ let fails=0;const ok=(c,m)=>{console.log((c?'  OK  ':' FEHL ')+m);if(!c)fails++}
   ok(ev('CATS.length')==2,'Daten geladen: '+ev('CATS.map(c=>c.name).join(", ")'));
   ok($('#app').innerHTML.includes('Mia'),'Startseite zeigt die Tiere');
   // Tab-Wechsel per Klick
+  console.log("!!! VERSTECKTER JS-FEHLER !!!", errors);
   for(const [v,txt] of [['pets','Meine Tiere'],['more','Katalog'],['today','Heute bisher']]){
     $(`#nav [data-v="${v}"]`).click();await wait(100);
     ok($('#app').innerHTML.includes(txt),`Tab ${v}`);

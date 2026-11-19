@@ -2,5 +2,8 @@
   "name": "meowmetrics-frontend-tests",
   "private": true,
   "description": "Rauchtest der Oberfläche (jsdom) gegen einen echten Server",
-  "devDependencies": { "jsdom": "^24.1.0" }
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.8",
+    "jsdom": "^24.1.0"
+  }
 }
