@@ -6,9 +6,9 @@ on:
   push:
     tags: ["v*"]
     branches: [main]
-    paths: ["mobile/**", ".github/workflows/android.yml"]
+    paths: ["mobile/**", "app/static/**", ".github/workflows/android.yml"]
   pull_request:
-    paths: ["mobile/**", ".github/workflows/android.yml"]
+    paths: ["mobile/**", "app/static/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
 permissions:
@@ -54,8 +54,8 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Version $NAME (versionCode $CODE)"
 
-      - name: Web-Dateien in das Android-Projekt kopieren
-        run: npx cap sync android
+      - name: Oberfläche bauen und in das Android-Projekt kopieren
+        run: npm run sync
 
       - name: Test-APK bauen (ohne Tag)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
