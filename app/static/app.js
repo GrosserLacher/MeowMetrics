@@ -109,34 +109,90 @@ function setLang(l,init){if(!L10N[l])l='de';LANG=l;prepLang();document.documentE
 const detectLang=()=>{const n=(navigator.language||'de').slice(0,2).toLowerCase();return L10N[n]&&n!='de'?n:'de'};
 
 /* ---------- Anmeldung und Start ---------- */
-function showLogin(setup){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
-  el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">${setup?'Willkommen! Administrator anlegen':'Anmelden'}</h2><p class="muted">${setup?'Der erste Benutzer wird Administrator. Weitere Benutzer legst du später in den Einstellungen an.':'Dieses Gerät bleibt danach angemeldet.'}</p>
-  <input type="text" id="lu" placeholder="Benutzername" autocomplete="username" enterkeyhint="next"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}" enterkeyhint="go"><div id="le" class="warnbox" hidden></div><button class="btn primary block" id="lb" style="margin-top:12px">${setup?'Konto anlegen':'Anmelden'}</button></div>`;
-  const go=async()=>{const r=await BACKEND.raw('POST',setup?'/api/setup-admin':'/api/login',{json:{username:$('#lu').value,password:$('#lp').value}});
-    if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}const x=$('#le');x.hidden=false;x.textContent=d;return}el.remove();await initApp()};
-  $('#lb').onclick=go;$('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};['#lu','#lp'].forEach(q=>$(q).addEventListener('focus',e=>setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),350)));$('#lu').focus()}
-function showOffline(){let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
-  el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div><h2 class="ph">Keine Verbindung</h2><p class="muted">Beim ersten Start wird eine Verbindung zum Server benötigt. Danach funktioniert die App auch offline.</p><button class="btn primary block" onclick="location.reload()">Erneut versuchen</button></div>`}
-function registerSW(){if(SECURE&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{})}
+const loginShell=inner=>{let el=$('#login');if(!el){document.body.insertAdjacentHTML('beforeend','<div id="login"></div>');el=$('#login')}
+  el.innerHTML=`<div class="card logincard"><div class="brandbig"><span class="logo">${ico('paw',22)}</span><b>${esc(window.APP_NAME||'')}</b></div>${inner}</div>`;return el};
+const scrollOnFocus=sels=>sels.forEach(q=>{const e=$(q);if(e)e.addEventListener('focus',ev=>setTimeout(()=>ev.target.scrollIntoView({block:'center',behavior:'smooth'}),350))});
+/* Android-App, erster Start: Server oder lokal */
+function showMode(){
+  loginShell(`<h2 class="ph">Wie möchtest du MeowMetrics nutzen?</h2><button class="btn primary block" id="mser">Mit Server verbinden</button><button class="btn ghost block" id="mloc" style="margin-top:10px" disabled>Lokal auf diesem Gerät</button><p class="muted fine">Der lokale Modus ohne Server folgt in einem späteren Update. Bis dahin brauchst du einen MeowMetrics-Server.</p>`);
+  $('#mser').onclick=showServer}
+function normServer(raw){let s=(raw||'').trim();const bad={e:'Bitte eine gültige Adresse eingeben, z. B. https://meowmetrics.example.org'};
+  if(!s)return bad;if(location.protocol=='https:'&&/^http:\/\//i.test(s))return{e:'Aus Sicherheitsgründen sind nur Adressen mit https:// erlaubt.'};if(!/^https?:\/\//i.test(s))s='https://'+s;   // http nur außerhalb der App (Tests)
+  try{const u=new URL(s);if(!u.hostname||(u.hostname.indexOf('.')<0&&u.hostname!='localhost'))return bad;return{u:u.origin+(u.pathname=='/'?'':u.pathname.replace(/\/$/,''))}}catch(e){return bad}}
+async function pingServer(u){const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);
+  try{const r=await fetch(u+'/api/auth/status',{credentials:'omit',signal:c.signal}),j=await r.json();if(typeof j.needs_setup!='boolean')return{e:'Das ist kein MeowMetrics-Server.'};return{st:j}}
+  catch(e){return{e:'Der Server ist nicht erreichbar. Prüfe Adresse und Internetverbindung. Auf dem Server muss CORS_ORIGINS=https://localhost gesetzt sein.'}}finally{clearTimeout(t)}}
+function showServer(){
+  loginShell(`<h2 class="ph">Server</h2><p class="muted">Mit welchem Server soll sich die App verbinden? Diese Adresse speicherst du nur einmal.</p><input type="url" id="su" inputmode="url" enterkeyhint="go" autocapitalize="none" autocomplete="url" spellcheck="false" placeholder="https://meowmetrics.example.org" value="${esc(BACKEND.cfg.server||'')}"><div id="se" class="warnbox" hidden></div><div class="row nowrap" style="margin-top:12px"><button class="btn ghost" id="sno">Abbrechen</button><button class="btn primary grow" id="sok">Weiter</button></div><p class="muted fine">Die Adresse muss mit https:// beginnen.</p>`);
+  const err=m=>{const x=$('#se');x.hidden=!m;x.textContent=m||''};
+  const go=async()=>{const n=normServer($('#su').value);if(n.e){err(n.e);return}err('');
+    const b=$('#sok');b.disabled=true;b.textContent='Prüfe Verbindung …';const r=await pingServer(n.u);b.disabled=false;b.textContent='Weiter';
+    if(r.e){err(r.e);return}
+    if(n.u==BACKEND.cfg.server&&BACKEND.cfg.token&&!r.st.needs_setup){$('#login').remove();initApp();return}   // derselbe Server, weiter angemeldet
+    if(n.u!=BACKEND.cfg.server){if(HAVE_IDB)await IDB.clearAll().catch(()=>{});BACKEND.setCfg({server:n.u,token:'',key:''})}   // anderer Server: Daten des alten verwerfen
+    else BACKEND.setCfg({token:'',key:''});
+    showLogin(r.st.needs_setup)};
+  $('#sok').onclick=go;$('#su').onkeydown=e=>{if(e.key=='Enter')go()};
+  $('#sno').onclick=()=>{if(BACKEND.cfg.server&&BACKEND.cfg.token){$('#login').remove();initApp()}else showMode()};
+  scrollOnFocus(['#su']);$('#su').focus()}
+function showLogin(setup){
+  loginShell(`<h2 class="ph">${setup?'Willkommen! Administrator anlegen':'Anmelden'}</h2><p class="muted">${setup?'Der erste Benutzer wird Administrator. Weitere Benutzer legst du später in den Einstellungen an.':'Dieses Gerät bleibt danach angemeldet.'}</p>
+  <input type="text" id="lu" placeholder="Benutzername" autocomplete="username" enterkeyhint="next"><div style="height:8px"></div><input type="password" id="lp" placeholder="Passwort${setup?' (mind. 8 Zeichen)':''}" autocomplete="${setup?'new-password':'current-password'}" enterkeyhint="go"><div id="le" class="warnbox" hidden></div><div class="row nowrap" style="margin-top:12px">${BACKEND.bundled?'<button class="btn ghost" id="lno">Abbrechen</button>':''}<button class="btn primary grow" id="lb">${setup?'Konto anlegen':'Anmelden'}</button></div>`);
+  const err=m=>{const x=$('#le');x.hidden=false;x.textContent=m};
+  const go=async()=>{const u=$('#lu').value,pw=$('#lp').value,body=BACKEND.bundled?{username:u,password:pw,token:true}:{username:u,password:pw};let r;
+    try{r=await BACKEND.raw('POST',setup?'/api/setup-admin':'/api/login',{json:body})}catch(e){err('Keine Verbindung zum Server');return}
+    if(!r.ok){let d='Anmeldung fehlgeschlagen';try{d=(await r.json()).detail||d}catch(e){}err(d);return}
+    if(BACKEND.bundled){
+      if(setup){try{r=await BACKEND.raw('POST','/api/login',{json:body})}catch(e){err('Keine Verbindung zum Server');return}if(!r.ok){err('Anmeldung fehlgeschlagen');return}}
+      let j={};try{j=await r.json()}catch(e){}BACKEND.setCfg({token:j.token||''})}
+    $('#login').remove();await initApp()};
+  $('#lb').onclick=go;if($('#lno'))$('#lno').onclick=showServer;
+  $('#lp').onkeydown=e=>{if(e.key=='Enter')go()};$('#lu').onkeydown=e=>{if(e.key=='Enter'){e.preventDefault();$('#lp').focus()}};
+  scrollOnFocus(['#lu','#lp']);$('#lu').focus()}
+function showOffline(){
+  loginShell(`<h2 class="ph">Keine Verbindung</h2><p class="muted">Beim ersten Start wird eine Verbindung zum Server benötigt. Danach funktioniert die App auch offline.</p><button class="btn primary block" onclick="location.reload()">Erneut versuchen</button>${BACKEND.bundled?'<button class="btn ghost block" id="osrv" style="margin-top:10px">Server wechseln</button>':''}`);
+  if($('#osrv'))$('#osrv').onclick=showServer}
+function registerSW(){if(!BACKEND.bundled&&SECURE&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{})}
+function startFrom(p){PREFS={...p,ui:{...(p.ui||{})}};HD=!!p.hd;if(p.lang&&L10N[p.lang])setLang(p.lang,true);applyTheme()}
+/* Android-App: Abgleich mit dem Server im Hintergrund (höchstens einmal pro Minute, außer erzwungen) */
+let LASTREFRESH=0;
+async function refreshOnline(force){
+  if(!force&&Date.now()-LASTREFRESH<60000)return;LASTREFRESH=Date.now();
+  try{
+    const st=await BACKEND.raw('GET','/api/auth/status').then(r=>r.json());
+    if(!st.user){BACKEND.setCfg({token:''});showLogin(false);return}
+    ME=st.user;const p=await API('GET','/api/prefs');
+    if(HAVE_IDB){IDB.set('me',ME).catch(()=>{});IDB.set('prefs',p).catch(()=>{})}
+    try{const k=await API('GET','/api/auth/media-key');if(k.key!==BACKEND.cfg.key)BACKEND.setCfg({key:k.key})}catch(e){}
+    OFFLINE=false;await syncOutbox();await load();render()
+  }catch(e){if(e&&e.message=='401')return;OFFLINE=true;render()}}
 async function initApp(){
+  if(BACKEND.bundled){
+    if(!BACKEND.cfg.server){showMode();return}
+    if(!BACKEND.cfg.token){showLogin(false);return}
+    const me=HAVE_IDB?await IDB.get('me').catch(()=>null):null,pr=HAVE_IDB?await IDB.get('prefs').catch(()=>null):null,bt=HAVE_IDB?await IDB.get('bootstrap').catch(()=>null):null;
+    if(me&&pr&&bt){   // Schnellstart: sofort aus dem Zwischenspeicher, der Abgleich folgt unsichtbar im Hintergrund
+      ME=me;startFrom(pr);
+      try{await load(true)}catch(e){console.error(e)}
+      try{LASTSYNC=(HAVE_IDB&&await IDB.get('lastsync'))||0}catch(e){}
+      render();refreshOnline(true);return}}
   let st,p;
   try{
     st=await BACKEND.raw('GET','/api/auth/status').then(r=>r.json());
     if(st.needs_setup){showLogin(true);return}
-    ME=st.user;if(!ME){showLogin(false);return}
+    ME=st.user;if(!ME){if(BACKEND.bundled)BACKEND.setCfg({token:''});showLogin(false);return}
     p=await API('GET','/api/prefs');
     if(HAVE_IDB){IDB.set('me',ME).catch(()=>{});IDB.set('prefs',p).catch(()=>{})}
+    if(BACKEND.bundled){try{const k=await API('GET','/api/auth/media-key');BACKEND.setCfg({key:k.key})}catch(e){}}
   }catch(e){
     if(e&&e.message=='401')return;
     if(!(e instanceof TypeError||(e&&e.offline)))throw e;
     ME=HAVE_IDB?await IDB.get('me').catch(()=>null):null;p=HAVE_IDB?await IDB.get('prefs').catch(()=>null):null;
     if(!ME||!p){showOffline();return}
     OFFLINE=true}
-  PREFS={...p,ui:{...(p.ui||{})}};HD=!!p.hd;
-  if(p.lang&&L10N[p.lang])setLang(p.lang,true);
-  applyTheme();
+  startFrom(p);
   try{await load()}catch(e){console.error(e);if(!OFFLINE)throw e}
   try{LASTSYNC=(HAVE_IDB&&await IDB.get('lastsync'))||0}catch(e){}
   render();registerSW();
-  if(!OFFLINE){pushInit().then(()=>render());syncOutbox()}}
+  if(!OFFLINE){if(!BACKEND.bundled)pushInit().then(()=>render());syncOutbox()}}
 setLang(detectLang(),true);initApp().catch(e=>console.error(e));

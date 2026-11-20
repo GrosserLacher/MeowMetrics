@@ -8,7 +8,7 @@ const IDB={db:null,
   open(){return this.db||(this.db=new Promise((res,rej)=>{const r=indexedDB.open('meowmetrics',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('outbox',{keyPath:'id',autoIncrement:true})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))},
   async tx(store,mode,fn){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction(store,mode);let q;try{q=fn(t.objectStore(store))}catch(e){rej(e);return}t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})},
   get(k){return this.tx('kv','readonly',s=>s.get(k))},set(k,v){return this.tx('kv','readwrite',s=>s.put(v,k))},
-  add(op){return this.tx('outbox','readwrite',s=>s.add(op))},all(){return this.tx('outbox','readonly',s=>s.getAll())},del(id){return this.tx('outbox','readwrite',s=>s.delete(id))}};
+  add(op){return this.tx('outbox','readwrite',s=>s.add(op))},clearKv(){return this.tx('kv','readwrite',s=>s.clear())},clearAll(){return this.tx('kv','readwrite',s=>s.clear()).then(()=>this.tx('outbox','readwrite',s=>s.clear()))},all(){return this.tx('outbox','readonly',s=>s.getAll())},del(id){return this.tx('outbox','readwrite',s=>s.delete(id))}};
 const toFD=entries=>{const f=new FormData();entries.forEach(([k,v])=>f.append(k,v));return f};
 async function refreshPending(){try{OPS=HAVE_IDB?await IDB.all():[]}catch(e){OPS=[]}PENDING=OPS.length}
 
@@ -50,7 +50,7 @@ async function syncOutbox(manual){
   else if(manual&&OFFLINE)toast('Keine Verbindung zum Server – es wird später erneut versucht')}
 A.syncnow=()=>{syncOutbox(true);return false};
 A.opdel=d=>{ask('Ausstehenden Eintrag verwerfen?','Dieser Eintrag wurde noch nicht an den Server übertragen und geht dann verloren.',async()=>{await IDB.del(+d.id);await refreshPending();try{await load()}catch(e){}render();toast('Verworfen')},'Verwerfen');return false};
-window.addEventListener('online',()=>{OFFLINE=false;render();syncOutbox()});
+window.addEventListener('online',()=>{OFFLINE=false;render();Promise.resolve(syncOutbox()).then(()=>{if(BACKEND.bundled&&!PENDING&&typeof refreshOnline=='function')refreshOnline(true)})});
 window.addEventListener('offline',()=>{OFFLINE=true;render()});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncOutbox()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncOutbox();if(BACKEND.bundled&&!OFFLINE&&typeof refreshOnline=='function')refreshOnline()}});
 setInterval(()=>{if(PENDING>0&&!SYNCING)syncOutbox()},30000);

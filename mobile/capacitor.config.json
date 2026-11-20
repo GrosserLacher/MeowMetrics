@@ -7,7 +7,6 @@
     "appendUserAgent": "MeowMetricsApp"
   },
   "server": {
-    "androidScheme": "https",
-    "errorPath": "index.html?down=1"
+    "androidScheme": "https"
   }
 }

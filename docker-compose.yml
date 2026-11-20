@@ -9,3 +9,4 @@ services:
       - ./data:/app/data
     environment:
       - TZ=Europe/Berlin
+      - CORS_ORIGINS=https://localhost

@@ -61,8 +61,10 @@ function applyHide(){
   MG=MG0.filter(m=>m.cats.some(n=>act.has(n)));
   FD=FD0.filter(f=>f.cat=='Unbekannt'||act.has(f.cat));
 }
-async function load(){
-  let d;try{d=await API('GET','/api/bootstrap');if(HAVE_IDB)IDB.set('bootstrap',d).catch(()=>{})}catch(e){if(!e.offline||!HAVE_IDB)throw e;d=await IDB.get('bootstrap');if(!d)throw e}
+async function load(cacheOnly){
+  let d;
+  if(cacheOnly){d=HAVE_IDB?await IDB.get('bootstrap'):null;if(!d)throw new Error('kein Zwischenspeicher')}
+  else try{d=await API('GET','/api/bootstrap');if(HAVE_IDB)IDB.set('bootstrap',d).catch(()=>{})}catch(e){if(!e.offline||!HAVE_IDB)throw e;d=await IDB.get('bootstrap');if(!d)throw e}
   PRF={};(d.profiles||[]).forEach(p=>{PRF[p.id]=p});
   CATS=d.animals.map((a,i)=>({id:a.id,name:a.name,sp:a.species||'cat',i,photo:MU((PRF[a.id]||{}).photo||''),life:(PRF[a.id]||{}).lifestyle||''}));
   VTYPES=d.vaccine_types||[];

@@ -1,9 +1,11 @@
 # MeowMetrics – Android-App (Capacitor)
 
-Android-Shell für MeowMetrics. Aktueller Stand: Beim ersten Start fragt die App nach der Server-Adresse (https) und lädt danach die PWA vom Server. Die Adresse wird gespeichert. Mit der Zurück-Taste auf der Startseite der PWA erscheint die Auswahl „Zurück zur App“ oder „Server ändern“. Der lokale Modus und der Sync folgen in späteren Schritten.
+Android-Hülle für MeowMetrics. Die Oberfläche steckt in der APK (`npm run sync` baut sie aus `app/static`), die Daten kommen vom Server.
+Einzelheiten, Server-Einstellung (`CORS_ORIGINS`) und Ablauf: `docs/APP.md`.
 
 - Application ID: `io.github.grosserlacher.meowmetrics`
 - Keine Google-Dienste, kein Cleartext-Traffic, Kamera optional
+- Eigene Zertifizierungsstellen, die auf dem Gerät installiert sind, werden akzeptiert (`network_security_config.xml`)
 
 ## Releases bauen (GitHub Actions)
 
@@ -53,6 +55,6 @@ Benötigt Node 22, JDK 21 und das Android SDK.
 ```bash
 cd mobile
 npm ci
-npx cap sync android
+npm run sync
 cd android && ./gradlew assembleDebug
 ```
