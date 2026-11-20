@@ -21,7 +21,10 @@ const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg'
       w.matchMedia=q=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){}});w.scrollTo=()=>{};
       Object.defineProperty(w.navigator,'language',{value:'de-DE'});w.HTMLElement.prototype.scrollIntoView=()=>{};
       w.indexedDB=indexedDB;w.IDBKeyRange=IDBKeyRange;if(store)w.localStorage.setItem('mm_cfg',store);
-      w.fetch=(u,o={})=>{const url=new URL(u,APP).href;if(!online&&url.startsWith(SERVER))return Promise.reject(new TypeError('Failed to fetch'));return fetch(url,o)}}});
+      // fetch von Node statt der Seite; das AbortSignal der Seite (jsdom) wird auf ein Node-Signal abgebildet (neuere Node-Versionen prüfen es streng)
+      w.fetch=(u,o={})=>{const url=new URL(u,APP).href;if(!online&&url.startsWith(SERVER))return Promise.reject(new TypeError('Failed to fetch'));
+        const {signal,...rest}=o;if(signal){const ac=new AbortController();signal.addEventListener('abort',()=>ac.abort());rest.signal=ac.signal}
+        return fetch(url,rest)}}});
     return dom.window};
   const text=w=>w.document.body.textContent.replace(/\s+/g,' ');
   // 1) Erststart
@@ -32,7 +35,9 @@ const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg'
   w.document.querySelector('#su').value='kein-server';w.document.querySelector('#sok').click();
   ok(await until(()=>!w.document.querySelector('#se').hidden),'ungültige oder nicht erreichbare Adresse wird gemeldet');
   w.document.querySelector('#su').value=SERVER;w.document.querySelector('#sok').click();
-  ok(await until(()=>w.document.querySelector('#lu')),'Server erreichbar, Anmeldung erscheint');
+  const loginShown=await until(()=>w.document.querySelector('#lu'));
+  ok(loginShown,'Server erreichbar, Anmeldung erscheint'+(loginShown?'':' (Meldung: '+((w.document.querySelector('#se')||{}).textContent||'-')+')'));
+  if(!loginShown){srv.close();process.exit(1)}
   ok(!!w.document.querySelector('#lno'),'Anmeldung hat einen Abbrechen-Knopf (App)');
   w.document.querySelector('#lu').value='admin';w.document.querySelector('#lp').value='geheim1234';w.document.querySelector('#lb').click();
   ok(await until(()=>w.eval('typeof CATS!="undefined"&&CATS.length>0')),'Anmeldung klappt, Daten sind geladen');
@@ -54,9 +59,10 @@ const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg'
   w.close();
   // 4) Wieder online: Neustart gleicht ab
   online=true;w=await open(cfg);
-  ok(await until(()=>w.eval('PENDING')===0&&w.eval('OFFLINE')===false,6000),'Online: Warteschlange wird abgeglichen');
-  const r=await fetch(SERVER+'/api/bootstrap',{headers:{Authorization:'Bearer '+c.token}}),b=await r.json();
-  ok(r.ok&&b.feedings.length>n0,'Server hat den Offline-Eintrag erhalten ('+n0+' -> '+b.feedings.length+' Zeilen)');
+  // Der Zähler steht unmittelbar nach dem Öffnen noch auf 0: erst auf den Server schauen, dann auf die Warteschlange
+  const count=async()=>(await (await fetch(SERVER+'/api/bootstrap',{headers:{Authorization:'Bearer '+c.token}})).json()).feedings.length;
+  ok(await until(async()=>(await count())>n0,10000),'Server hat den Offline-Eintrag erhalten ('+n0+' -> '+(await count())+' Zeilen)');
+  ok(await until(()=>w.eval('PENDING')===0&&w.eval('OFFLINE')===false,6000),'Online: Warteschlange ist leer');
   // 5) Abmelden entfernt Token und Schlüssel
   w.eval('A.logout()');await wait(300);
   const c2=JSON.parse(w.localStorage.getItem('mm_cfg'));ok(c2.token===''&&c2.key==='','Abmelden löscht Token und Schlüssel');
