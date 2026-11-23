@@ -122,7 +122,7 @@ A.xrm=d=>{const s=S.sh;URL.revokeObjectURL(s.pv[d.i]);s.files.splice(d.i,1);s.pv
 A.isave=T(async()=>{const s=S.sh,ts=s.ts||nowIso(),E2=[['cat_name',s.cat],['timestamp',ts],['notes',s.note||'']];
   if(s.ty=='vomit'){E2.push(['vomit_type',s.vtype]);if(s.files[0])E2.push(['image',s.files[0]]);
     const r=await mut('POST','/api/vomits',undefined,E2,{t:'vomit',cat:s.cat,type:s.vtype,note:s.note,ts});S.sh=null;
-    return()=>{if(r.queued){toast(okMsg(''));return}const v=V0.find(x=>x.id==r.id);if(v)S.sh={t:'res',v}}}
+    return()=>{if(r.queued){toast(okMsg('Gespeichert'));return}const v=V0.find(x=>x.id==r.id);if(v)S.sh={t:'res',v}}}
   const fl=Object.keys(s.flags).filter(k=>s.flags[k]),kind=s.ty=='stool'?'stool':s.fkind;
   E2.push(['kind',kind]);if(s.ty=='stool'){E2.push(['bristol',s.bristol]);E2.push(['details',fl.join(',')])}else E2.push(['location',s.loc||'']);
   s.files.forEach(f=>E2.push(['images',f]));

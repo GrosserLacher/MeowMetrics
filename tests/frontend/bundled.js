@@ -14,7 +14,7 @@ const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg'
   const srv=http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?')[0]);if(p=='/')p='/index.html';const f=path.join(out,p);
     if(!f.startsWith(out)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){r.writeHead(404);r.end();return}
     r.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream'});r.end(fs.readFileSync(f))}).listen(8124);
-  const errors=[];let online=true;
+  const errors=[];let online=true,delay=0;
   const open=async(store)=>{
     const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(String(e.detail&&e.detail.message||e.message)));
     const dom=await JSDOM.fromURL(APP+'/',{runScripts:'dangerously',resources:'usable',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){
@@ -23,8 +23,9 @@ const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg'
       w.indexedDB=indexedDB;w.IDBKeyRange=IDBKeyRange;if(store)w.localStorage.setItem('mm_cfg',store);
       // fetch von Node statt der Seite; das AbortSignal der Seite (jsdom) wird auf ein Node-Signal abgebildet (neuere Node-Versionen prüfen es streng)
       w.fetch=(u,o={})=>{const url=new URL(u,APP).href;if(!online&&url.startsWith(SERVER))return Promise.reject(new TypeError('Failed to fetch'));
+        const slow=delay&&url.startsWith(SERVER)&&(url.includes('/api/bootstrap')||(o.method=='POST'&&url.includes('/api/feedings')));
         const {signal,...rest}=o;if(signal){const ac=new AbortController();signal.addEventListener('abort',()=>ac.abort());rest.signal=ac.signal}
-        return fetch(url,rest)}}});
+        return slow?new Promise(r=>setTimeout(r,delay)).then(()=>fetch(url,rest)):fetch(url,rest)}}});
     return dom.window};
   const text=w=>w.document.body.textContent.replace(/\s+/g,' ');
   // 1) Erststart
@@ -63,6 +64,15 @@ const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg'
   const count=async()=>(await (await fetch(SERVER+'/api/bootstrap',{headers:{Authorization:'Bearer '+c.token}})).json()).feedings.length;
   ok(await until(async()=>(await count())>n0,10000),'Server hat den Offline-Eintrag erhalten ('+n0+' -> '+(await count())+' Zeilen)');
   ok(await until(()=>w.eval('PENDING')===0&&w.eval('OFFLINE')===false,6000),'Online: Warteschlange ist leer');
+  // 4b) Langsamer Server: Speichern schließt das Blatt sofort, der Abgleich läuft im Hintergrund
+  delay=3000;const n1=await count();
+  w.eval('S.sh=feedInit("food");render()');await wait(50);
+  const t1=Date.now();await w.eval('A.fsave()');const dt=Date.now()-t1;
+  ok(dt<800&&w.eval('S.sh')===null,'langsamer Server: Blatt schließt sofort ('+dt+' ms)');
+  const msg=w.document.querySelector('#toast').textContent;
+  ok(w.eval('PENDING')===1&&msg.trim().length>3&&!/Offline/.test(msg),'Eintrag liegt lokal vor, Erfolgsmeldung ohne Wartezeit und ohne Offline-Hinweis ("'+msg.trim()+'")');
+  ok(await until(async()=>(await count())>n1,12000),'Server erhält den Eintrag trotzdem ('+n1+' -> '+(await count())+')');
+  delay=0;
   // 5) Abmelden entfernt Token und Schlüssel
   w.eval('A.logout()');await wait(300);
   const c2=JSON.parse(w.localStorage.getItem('mm_cfg'));ok(c2.token===''&&c2.key==='','Abmelden löscht Token und Schlüssel');

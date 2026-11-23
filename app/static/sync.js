@@ -15,11 +15,14 @@ async function refreshPending(){try{OPS=HAVE_IDB?await IDB.all():[]}catch(e){OPS
 /* Eintrag senden – ohne Verbindung landet er in der Warteschlange (mit eindeutiger Kennung, damit er nie doppelt ankommt) */
 async function mut(method,url,json,entries,pend){
   const cid=uuid();
+  if(BACKEND.bundled&&HAVE_IDB){   // App: Eintrag zuerst auf dem Gerät sichern, der Abgleich mit dem Server läuft danach im Hintergrund
+    await IDB.add({cid,method,url,json:json===undefined?null:json,entries:entries||null,pend,ts:Date.now()});
+    QN=true;await refreshPending();setTimeout(()=>syncOutbox(),0);return{queued:true}}
   try{return await API(method,url,json,entries?toFD(entries):undefined,{'X-Client-Id':cid})}
   catch(e){if(!e.offline||!HAVE_IDB)throw e;
     await IDB.add({cid,method,url,json:json===undefined?null:json,entries:entries||null,pend,ts:Date.now()});
     QN=true;await refreshPending();return{queued:true}}}
-const okMsg=m=>QN?'Offline gespeichert – wird synchronisiert, sobald eine Verbindung besteht':m;
+const okMsg=m=>QN&&(!BACKEND.bundled||OFFLINE)?'Offline gespeichert – wird synchronisiert, sobald eine Verbindung besteht':m;
 
 /* Noch nicht gesendete Einträge sofort in den Listen anzeigen */
 async function applyPending(){
@@ -45,7 +48,7 @@ async function syncOutbox(manual){
   await refreshPending();
   if(ok||failed.length){LASTSYNC=Date.now();if(HAVE_IDB)IDB.set('lastsync',LASTSYNC).catch(()=>{});try{await load()}catch(e){}}
   render();
-  if(ok)toast(`Synchronisiert: ${ok} ${ok==1?'Eintrag':'Einträge'} übertragen`+(failed.length?` · ${failed.length} vom Server abgelehnt`:''));
+  if(ok&&(manual||failed.length||ok>1||!BACKEND.bundled))toast(`Synchronisiert: ${ok} ${ok==1?'Eintrag':'Einträge'} übertragen`+(failed.length?` · ${failed.length} vom Server abgelehnt`:''));
   else if(failed.length)toast(`${failed.length} Eintrag/Einträge vom Server abgelehnt: ${failed[0]}`);
   else if(manual&&OFFLINE)toast('Keine Verbindung zum Server – es wird später erneut versucht')}
 A.syncnow=()=>{syncOutbox(true);return false};

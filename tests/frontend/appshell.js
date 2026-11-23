@@ -1,3 +1,4 @@
+const mapSignal=o=>{const {signal,...rest}=o||{};if(signal){const ac=new AbortController();signal.addEventListener('abort',()=>ac.abort());rest.signal=ac.signal}return rest};
 const {JSDOM,VirtualConsole}=require('jsdom');
 const BASE='http://127.0.0.1:8123';let cookie='';
 (async()=>{
@@ -6,7 +7,7 @@ const BASE='http://127.0.0.1:8123';let cookie='';
   for(const ua of ['Mozilla/5.0 jsdom','Mozilla/5.0 jsdom MeowMetricsApp']){
     const dom=await JSDOM.fromURL(BASE+'/',{userAgent:ua,runScripts:'dangerously',resources:'usable',pretendToBeVisual:true,virtualConsole:new VirtualConsole(),beforeParse(w){
       w.matchMedia=q=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){}});w.scrollTo=()=>{};Object.defineProperty(w.navigator,'userAgent',{value:ua});Object.defineProperty(w.navigator,'language',{value:'de-DE'});
-      w.fetch=(u,o={})=>fetch(new URL(u,BASE).href,{...o,headers:{...(o.headers||{}),Cookie:cookie}});}});
+      w.fetch=(u,o={})=>fetch(new URL(u,BASE).href,{...mapSignal(o),headers:{...(o.headers||{}),Cookie:cookie}});}});
     const w=dom.window,$=s=>w.document.querySelector(s),wait=ms=>new Promise(r=>setTimeout(r,ms));
     await wait(1500);$('#nav [data-v="more"]').click();await wait(80);
     $('#app [data-v="look"]').click();await wait(100);
