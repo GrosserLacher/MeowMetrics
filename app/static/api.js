@@ -25,7 +25,7 @@ const BACKEND={
     if(tmo){ctl=new AbortController();init.signal=ctl.signal;t=setTimeout(()=>ctl.abort(),tmo)}
     try{return await fetch(this.url(path),init)}catch(e){if(e&&e.name=='AbortError')throw new TypeError('Zeitüberschreitung');throw e}finally{clearTimeout(t)}},
   async request(m,u,b,f,h){let r;
-    try{r=await this.raw(m,u,{json:b,form:f,headers:h})}catch(e){const er=new Error('offline');er.offline=true;if(typeof setOffline=='function')setOffline(true);throw er}
+    try{r=await this.raw(m,u,{json:b,form:f,headers:h,timeout:(this.bundled&&u=='/api/bootstrap')?30000:undefined})}catch(e){const er=new Error('offline');er.offline=true;if(typeof setOffline=='function')setOffline(true);throw er}
     if(typeof setOffline=='function')setOffline(false);
     if(r.status==401&&u!='/api/login'){if(this.bundled)this.setCfg({token:''});showLogin(false);throw new Error('401')}
     if(!r.ok){let d='Fehler '+r.status;try{const j=await r.json();d=typeof j.detail=='string'?j.detail:d}catch(e){}toast(d);throw new Error(d)}

@@ -58,3 +58,15 @@ npm ci
 npm run sync
 cd android && ./gradlew assembleDebug
 ```
+
+## App-Symbol
+Das Symbol wird aus dem Favicon der Oberfläche (`app/static/favicon.svg`, sonst `icon-512.png`) erzeugt:
+
+```bash
+cd mobile
+npm ci
+npm run icons                      # optional: npm run icons -- --src bild.svg --bg "#c8563a"
+git add android/app/src/main/res
+```
+Das Skript schreibt die Symbole für alle Bildschirmdichten (altes, rundes und adaptives Symbol) und die Hintergrundfarbe.
+

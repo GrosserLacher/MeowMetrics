@@ -1,4 +1,5 @@
 const {JSDOM,VirtualConsole}=require('jsdom');
+const mapSignal=o=>{const {signal,...rest}=o||{};if(signal){const ac=new AbortController();signal.addEventListener('abort',()=>ac.abort());rest.signal=ac.signal}return rest};
 const BASE='http://127.0.0.1:8123';
 let cookie='';
 const api=async(m,u,b)=>{const r=await fetch(BASE+u,{method:m,headers:{'Content-Type':'application/json',Cookie:cookie},body:b?JSON.stringify(b):undefined});
@@ -18,7 +19,7 @@ let fails=0;const ok=(c,m)=>{console.log((c?'  OK  ':' FEHL ')+m);if(!c)fails++}
     beforeParse(w){
       w.matchMedia=q=>({matches:false,media:q,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
       w.scrollTo=()=>{};Object.defineProperty(w.navigator,'language',{value:'de-DE'});
-      w.fetch=(u,o={})=>fetch(new URL(u,BASE).href,{...o,headers:{...(o.headers||{}),Cookie:cookie}});
+      w.fetch=(u,o={})=>fetch(new URL(u,BASE).href,{...mapSignal(o),headers:{...(o.headers||{}),Cookie:cookie}});
       w.HTMLElement.prototype.scrollIntoView=()=>{};
       w.window.addEventListener('error',e=>errors.push('window error: '+e.message+' @'+(e.filename||'').split('/').pop()+':'+e.lineno));
     }});
@@ -28,7 +29,6 @@ let fails=0;const ok=(c,m)=>{console.log((c?'  OK  ':' FEHL ')+m);if(!c)fails++}
   ok(ev('CATS.length')==2,'Daten geladen: '+ev('CATS.map(c=>c.name).join(", ")'));
   ok($('#app').innerHTML.includes('Mia'),'Startseite zeigt die Tiere');
   // Tab-Wechsel per Klick
-  console.log("!!! VERSTECKTER JS-FEHLER !!!", errors);
   for(const [v,txt] of [['pets','Meine Tiere'],['more','Katalog'],['today','Heute bisher']]){
     $(`#nav [data-v="${v}"]`).click();await wait(100);
     ok($('#app').innerHTML.includes(txt),`Tab ${v}`);
